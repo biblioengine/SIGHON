@@ -31,6 +31,26 @@ h1 em{font-style:italic}
 .meta{font-family:var(--mono);font-size:11px;color:var(--muted);text-align:right;min-width:0;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
 .meta b{color:var(--fg);font-weight:500}
 
+.deck{display:contents}
+.panel{display:flex;flex-direction:column;gap:22px;min-width:0}
+.vidbox{display:flex;justify-content:center;background:#0e0d10;margin-bottom:10px}
+.vidbox video{display:block;height:30vh;max-width:100%;object-fit:contain}
+.deck.vid-on .stage{width:min(100%,calc(46vh * 16 / 9))}
+/* iPhone を横にしたとき：上段に映像と操作パネル、下段に紙 */
+@media (orientation:landscape) and (max-height:560px){
+  .deck.vid-on{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);grid-template-areas:"vid panel" "stage stage";gap:14px 18px}
+  .deck.vid-on .stickybox{display:contents}
+  .deck.vid-on .vidbox{grid-area:vid;margin:0;align-self:start}
+  .deck.vid-on .vidbox video{height:34vh}
+  .deck.vid-on .panel{grid-area:panel;gap:14px;align-self:center}
+  .deck.vid-on .stage{grid-area:stage;width:min(100%,calc(50vh * 16 / 9))}
+  .wrap:has(.deck.vid-on){padding-block:6px 40px;gap:10px}
+  .wrap:has(.deck.vid-on) header{flex-wrap:nowrap;align-items:baseline}
+  .wrap:has(.deck.vid-on) h1{font-size:28px}
+  .wrap:has(.deck.vid-on) .sub{display:inline;margin:0 0 0 12px}
+  .wrap:has(.deck.vid-on) .meta br{display:none}
+  .deck.vid-on .tc{font-size:18px}
+}
 .stickybox{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);padding-block:10px;margin-block:-10px}
 .stage{position:relative;width:min(100%,calc(58vh * 16 / 9));margin-inline:auto;aspect-ratio:16/9;max-width:100%;background:#f4f2ec;isolation:isolate;overflow:hidden}
 .stage.drag{outline:2px solid var(--accent);outline-offset:-2px}
@@ -113,7 +133,9 @@ body{margin:0}
     <div class="meta" id="meta">Loading Ballerino</div>
   </header>
 
+  <div class="deck" id="deck">
   <div class="stickybox">
+  <div class="vidbox" id="vidbox" hidden><video id="vid" muted playsinline preload="auto"></video></div>
   <div class="stage" id="stage">
     <canvas id="paint" width="288" height="162"></canvas>
     <canvas id="static"></canvas>
@@ -123,13 +145,17 @@ body{margin:0}
   </div>
   </div>
 
+  <div class="panel">
   <div class="transport">
     <button class="btn play" id="play" disabled>Play</button>
-    <label class="filebtn" for="file">Load audio<input type="file" id="file" accept="audio/*,.mp3,.wav,.m4a,.aac,.ogg,.flac"></label>
+    <label class="filebtn" for="file">Load audio<input type="file" id="file" accept="audio/*,video/*,.mp3,.wav,.m4a,.aac,.ogg,.flac,.mov,.mp4,.m4v"></label>
     <button class="btn" id="demo">Ballerino</button>
+    <label class="check" id="vidToggleWrap" for="vidToggle" hidden><input type="checkbox" id="vidToggle" checked>Video</label>
     <div class="tc" id="hPos">0:00 <span>/ 0:00</span></div>
   </div>
   <div class="overview" id="overview" title="Jump to this point"><canvas id="ovCv"></canvas></div>
+  </div>
+  </div>
 
   <div class="index">
     <section>
@@ -537,19 +563,38 @@ const fmt=t=>{t=Math.max(0,t);return `${Math.floor(t/60)}:${String(Math.floor(t%
 function lowerBound(t){let a=0,b=notes.length;while(a<b){const m=(a+b)>>1;if(notes[m].t<t)a=m+1;else b=m;}return a;}
 
 function stopSource(){if(srcNode){srcNode.onended=null;try{srcNode.stop();}catch(e){}srcNode.disconnect();srcNode=null;}}
+// ---------- video (when a video file is loaded) ----------
+const vid=document.getElementById('vid'), vidbox=document.getElementById('vidbox'), deck=document.getElementById('deck');
+const vidToggle=document.getElementById('vidToggle'), vidToggleWrap=document.getElementById('vidToggleWrap');
+let vidUrl=null, hasVideo=false;
+function setVideo(file){
+ vidbox.style.opacity=''; if(vidUrl){URL.revokeObjectURL(vidUrl);vidUrl=null;}
+ hasVideo=false; vid.removeAttribute('src'); vid.load(); vidToggleWrap.hidden=true; showVideo();
+ if(!file)return;
+ vidUrl=URL.createObjectURL(file); vid.src=vidUrl;
+ vid.onloadedmetadata=()=>{hasVideo=vid.videoWidth>0; vidToggleWrap.hidden=!hasVideo; showVideo(); syncVideo(true);};
+}
+function showVideo(){const on=hasVideo&&vidToggle.checked; vidbox.hidden=!on; deck.classList.toggle('vid-on',on); if(on)syncVideo(true); else vid.pause();}
+function syncVideo(force){
+ if(!hasVideo||vidbox.hidden)return; const t=Math.min(clock(),buffer?buffer.duration:0);
+ if(force||Math.abs(vid.currentTime-t)>0.15){try{vid.currentTime=t;}catch(e){}}
+ if(playing&&vid.paused)vid.play().catch(()=>{}); if(!playing&&!vid.paused)vid.pause();
+}
+vidToggle.addEventListener('change',showVideo);
+
 function play(){
  if(!buffer||busy)return; outro=null; ensureCtx(); if(ctx.state==='suspended')ctx.resume();
  if(pos>=buffer.duration-0.05){pos=0;seek(0);}
  srcNode=ctx.createBufferSource(); srcNode.buffer=buffer; srcNode.connect(out);
  startCtx=ctx.currentTime; startPos=pos; srcNode.start(0,pos); playing=true;
- cta.hidden=true; playBtn.textContent='Pause';
+ cta.hidden=true; playBtn.textContent='Pause'; syncVideo(true);
 }
-function pause(){outro=null;pos=Math.min(clock(),buffer?buffer.duration:0);playing=false;stopSource();playBtn.textContent='Play';}
+function pause(){outro=null;pos=Math.min(clock(),buffer?buffer.duration:0);playing=false;stopSource();playBtn.textContent='Play';syncVideo(true);}
 function seek(t){
  outro=null; const was=playing; if(playing){playing=false;stopSource();}
  pos=clamp(t,0,buffer?buffer.duration:0); vIdx=lowerBound(pos); active=[];
  clearPaper(); scrollCol=targetScroll(pos); refillPaper(); drawOverview();
- if(was)play(); else playBtn.textContent='Play';
+ if(was)play(); else {playBtn.textContent='Play'; syncVideo(true);}
 }
 
 async function loadBuffer(buf,name){
@@ -560,12 +605,81 @@ async function loadBuffer(buf,name){
  busy=false; busyEl.hidden=true; playBtn.disabled=false; cta.hidden=false;
  updateMeta(); buildOverview(); seek(0);
 }
-function updateMeta(){metaEl.innerHTML=`<b>${escapeHtml(title)}</b><br>${fmt(buffer.duration)} · 5 bands`;}
+function updateMeta(){metaEl.innerHTML=`<b>${escapeHtml(title)}</b> <br>${fmt(buffer.duration)} · 5 bands`;}
 function escapeHtml(s){return s.replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+// 動画（mov/mp4）から AAC 音声を取り出し、ADTS 形式（.aac）に組み直す
+function videoToAdts(MP4Box, ab){
+ return new Promise((resolve,reject)=>{
+  const f=MP4Box.createFile(); let track=null, chunks=[], total=0, cfg=null, expected=0, got=0;
+  f.onError=e=>reject(new Error('demux:'+e));
+  f.onReady=info=>{
+   track=info.audioTracks&&info.audioTracks[0];
+   if(!track||!/^mp4a/.test(track.codec)){reject(new Error('no aac track'));return;}
+   // AAC の設定（AudioSpecificConfig）。mov では esds が wave 箱の中にあるので、見つからなければ生のバイト列から探す
+   let dsi=null;
+   try{const e=f.getTrackById(track.id).mdia.minf.stbl.stsd.entries[0]; dsi=e.esds.esd.descs[0].descs[0].data;}catch(_){}
+   if(!dsi)dsi=findAsc(new Uint8Array(ab));
+   const SR=[96000,88200,64000,48000,44100,32000,24000,22050,16000,12000,11025,8000,7350];
+   if(dsi&&dsi.length>=2){const aot=dsi[0]>>3, sfi=((dsi[0]&7)<<1)|(dsi[1]>>7), ch=(dsi[1]>>3)&15;
+    cfg={profile:Math.max(1,Math.min(4,aot))-1,sfi,ch:ch||2};}
+   else{const sr=track.audio&&track.audio.sample_rate, i=SR.indexOf(sr);
+    if(i<0){reject(new Error('unknown rate'));return;} cfg={profile:1,sfi:i,ch:(track.audio&&track.audio.channel_count)||2};}
+   expected=track.nb_samples;
+   f.setExtractionOptions(track.id,null,{nbSamples:expected});
+   f.start();
+  };
+  f.onSamples=(id,user,samples)=>{
+   for(const s of samples){const len=s.data.length+7, h=new Uint8Array(7);
+    h[0]=0xFF;h[1]=0xF1;h[2]=(cfg.profile<<6)|(cfg.sfi<<2)|((cfg.ch>>2)&1);
+    h[3]=((cfg.ch&3)<<6)|((len>>11)&3);h[4]=(len>>3)&0xFF;h[5]=((len&7)<<5)|0x1F;h[6]=0xFC;
+    chunks.push(h,s.data);total+=len;}
+   got+=samples.length;
+   if(got>=expected){const out=new Uint8Array(total);let o=0;for(const c of chunks){out.set(c,o);o+=c.length;}resolve(out.buffer);}
+  };
+  const buf=ab.slice(0); buf.fileStart=0; f.appendBuffer(buf); f.flush();
+ });
+}
+function findAsc(b){
+ // 'esds' 箱を探し、ES記述子の中の DecoderSpecificInfo（タグ5）を取り出す
+ for(let i=4;i<b.length-8;i++){
+  if(b[i]!==0x65||b[i+1]!==0x73||b[i+2]!==0x64||b[i+3]!==0x73)continue;
+  const end=Math.min(b.length,i-4+((b[i-4]<<24|b[i-3]<<16|b[i-2]<<8|b[i-1])>>>0));
+  for(let j=i+8;j<end-2;j++){if(b[j]!==5)continue; let k=j+1,len=0,n=0; while(n<4&&k<end){const v=b[k++];len=(len<<7)|(v&127);n++;if(!(v&128))break;}
+   if(len>=2&&len<=8&&k+len<=end){const a=b.slice(k,k+len);const aot=a[0]>>3; if(aot>=1&&aot<=5)return a;}}
+ }
+ return null;
+}
+// 動画から音声を取り出すための部品は、必要になったときだけ読み込む
+let mp4boxP=null;
+function loadMp4box(){
+ if(window.MP4Box)return Promise.resolve(window.MP4Box);
+ if(!mp4boxP)mp4boxP=new Promise((res,rej)=>{const sc=document.createElement('script');
+  sc.src='https://cdn.jsdelivr.net/npm/mp4box@0.5.2/dist/mp4box.all.min.js';
+  sc.onload=()=>window.MP4Box?res(window.MP4Box):rej(new Error('mp4box'));sc.onerror=()=>{mp4boxP=null;rej(new Error('mp4box'));};document.head.appendChild(sc);});
+ return mp4boxP;
+}
+function decode(ab){
+ // Safari の古い版にも対応するため、コールバック形式でも受ける
+ return new Promise((res,rej)=>{let done=false;
+  const p=ctx.decodeAudioData(ab,b=>{if(!done){done=true;res(b);}},e=>{if(!done){done=true;rej(e||new Error('decode'));}});
+  if(p&&p.then)p.then(b=>{if(!done){done=true;res(b);}},e=>{if(!done){done=true;rej(e);}});});
+}
+function showError(msg){busy=false;busyEl.hidden=false;busyEl.textContent=msg;metaEl.textContent=msg;if(buffer)playBtn.disabled=false;}
 async function loadFile(file){
  if(!file)return; ensureCtx(); cta.innerHTML='Play<small>SOUND ON</small>';
- try{const ab=await file.arrayBuffer(); const buf=await ctx.decodeAudioData(ab); await loadBuffer(buf,file.name);}
- catch(e){busy=false;busyEl.hidden=true;metaEl.textContent='This file could not be decoded. Try MP3, WAV or M4A.';if(buffer)playBtn.disabled=false;}
+ busy=true; if(playing)pause(); busyEl.hidden=false; busyEl.textContent='Reading file'; metaEl.textContent=`Reading ${file.name}`;
+ let ab;
+ try{ab=await file.arrayBuffer();}catch(e){showError('This file could not be read.');return;}
+ const isVideo=/^video\//.test(file.type)||/\.(mov|mp4|m4v|m4a)$/i.test(file.name);
+ let buf=null;
+ try{buf=await decode(ab.slice(0));}
+ catch(e){
+  if(isVideo){
+   try{busyEl.textContent='Extracting audio from video'; const M=await loadMp4box(); const adts=await videoToAdts(M,ab); buf=await decode(adts);}
+   catch(e2){showError(e2&&e2.message==='mp4box'?'Could not load the video reader. Check your connection.':'No usable audio was found in this video.');return;}
+  }else{showError('This file could not be decoded. Try MP3, WAV, M4A, MOV or MP4.');return;}
+ }
+ busy=false; setVideo(isVideo?file:null); await loadBuffer(buf,file.name);
 }
 
 // ---------- painting ----------
@@ -663,7 +777,11 @@ function frame(ts){
  let t=clock();
  if(playing&&buffer&&t>=buffer.duration){pos=buffer.duration;playing=false;stopSource();playBtn.textContent='Play';outro=performance.now()-(t-buffer.duration)*1000;t=clock();}
  if(outro!==null&&t>=buffer.duration+outroLen()){outro=null;pos=buffer.duration+outroLen();t=pos;}
- scrollTo(targetScroll(t));
+ scrollTo(targetScroll(t)); if(hasVideo&&playing)syncVideo(false); else if(hasVideo&&outro!==null&&!vid.paused)vid.pause();
+ // 紙が流れ切るのに合わせて、映像もフェードアウトする
+ if(hasVideo&&buffer){const end=buffer.duration, L=outroLen();
+  const a=outro!==null?clamp(1-(t-end)/L,0,1):(!playing&&pos>=end+L-0.01?0:1);
+  const v=a.toFixed(3); if(vidbox.style.opacity!==v)vidbox.style.opacity=v;}
  GRAV=(varOn.rhythm&&feat&&playing)?0.07*varAmt.rhythm*featAt(feat.rhythm,t):0;
  if(playing){
   while(vIdx<notes.length&&notes[vIdx].t<=t){paintNote(notes[vIdx++]);noteTimes.push(ts);}
@@ -698,7 +816,7 @@ const DEFAULT_URL='audio/ballerino.ogg', DEFAULT_TITLE='Ballerino — Yehezkel R
 function unscramble(ab){const b=new Uint8Array(ab), R=mulberry32(0x5A1907E5); let w=0;
  for(let i=0;i<b.length;i++){if((i&3)===0)w=Math.floor(R()*4294967296)>>>0; b[i]^=(w>>>(8*(i&3)))&255;} return b.buffer;}
 async function loadDefault(){
- busyEl.hidden=false; busyEl.textContent='Loading'; cta.innerHTML='Play<small>SOUND ON</small>';
+ setVideo(null); busyEl.hidden=false; busyEl.textContent='Loading'; cta.innerHTML='Play<small>SOUND ON</small>';
  try{ensureCtx(); const r=await fetch(DEFAULT_URL); if(!r.ok)throw 0; const buf=await ctx.decodeAudioData(unscramble(await r.arrayBuffer())); await loadBuffer(buf,DEFAULT_TITLE);}
  catch(e){ try{const b=await makeDemo(); await loadBuffer(b,'Sample');}catch(_){busyEl.hidden=true;metaEl.textContent='Load an audio file';} }
 }
