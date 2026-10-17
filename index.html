@@ -28,6 +28,10 @@ header{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:fle
 h1{font-family:var(--display);font-weight:400;font-size:clamp(40px,6.4vw,68px);line-height:.92;letter-spacing:.06em;margin:0}
 h1 em{font-style:italic}
 .sub{display:block;font-family:var(--body);font-size:12px;letter-spacing:.02em;color:var(--muted);margin-top:10px;line-height:1.4}
+.hright{display:flex;flex-direction:column;align-items:flex-end;gap:10px;min-width:0}
+.themebtn{display:inline-flex;align-items:center;gap:7px;font:500 11px/1 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--fg);background:transparent;border:1px solid var(--faint);border-radius:999px;padding:6px 11px 6px 8px;cursor:pointer}
+.themebtn:hover{border-color:var(--fg)}
+@media (max-width:600px){header{position:relative}.themebtn{position:absolute;top:6px;right:0}.hright{align-items:flex-start}header .meta{text-align:left}}
 .meta{font-family:var(--mono);font-size:11px;color:var(--muted);text-align:right;min-width:0;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
 .meta b{color:var(--fg);font-weight:500}
 
@@ -49,6 +53,8 @@ h1 em{font-style:italic}
   .wrap:has(.deck.vid-on) h1{font-size:28px}
   .wrap:has(.deck.vid-on) .sub{display:inline;margin:0 0 0 12px}
   .wrap:has(.deck.vid-on) .meta br{display:none}
+  .wrap:has(.deck.vid-on) .hright{flex-direction:row-reverse;align-items:center;gap:14px}
+  .wrap:has(.deck.vid-on) .themebtn{padding:4px 9px 4px 6px}
   .deck.vid-on .tc{font-size:18px}
 }
 .stickybox{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);padding-block:10px;margin-block:-10px}
@@ -130,7 +136,10 @@ body{margin:0}
 <div class="wrap">
   <header>
     <h1>SIGHON<span class="sub">彩音 · an audio score, painted in watercolour</span></h1>
-    <div class="meta" id="meta">Loading Ballerino</div>
+    <div class="hright">
+      <button class="themebtn" id="themeBtn" type="button" aria-label="Switch to dark mode"><svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true"><circle cx="10" cy="10" r="7.5" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M10 2.5a7.5 7.5 0 0 1 0 15z" fill="currentColor"/></svg><span id="themeLabel">Dark</span></button>
+      <div class="meta" id="meta">Loading Ballerino</div>
+    </div>
   </header>
 
   <div class="deck" id="deck">
@@ -810,6 +819,16 @@ const sensEl=document.getElementById('sens'), pencilEl=document.getElementById('
 cta.addEventListener('click',play);
 playBtn.addEventListener('click',()=>playing?pause():play());
 document.getElementById('file').addEventListener('change',e=>{loadFile(e.target.files[0]);e.target.value='';});
+// ---------- theme ----------
+const themeBtn=document.getElementById('themeBtn'), themeLabel=document.getElementById('themeLabel');
+const mq=window.matchMedia?matchMedia('(prefers-color-scheme: dark)'):null;
+const isDark=()=>{const a=document.documentElement.getAttribute('data-theme'); return a?a==='dark':!!(mq&&mq.matches);};
+function syncThemeBtn(){const d=isDark(); themeLabel.textContent=d?'Light':'Dark'; themeBtn.setAttribute('aria-label',d?'Switch to light mode':'Switch to dark mode');}
+try{const saved=localStorage.getItem('sighon-theme'); if(saved==='dark'||saved==='light')document.documentElement.setAttribute('data-theme',saved);}catch(e){}
+themeBtn.addEventListener('click',()=>{const next=isDark()?'light':'dark'; document.documentElement.setAttribute('data-theme',next); try{localStorage.setItem('sighon-theme',next);}catch(e){} syncThemeBtn();});
+if(mq&&mq.addEventListener)mq.addEventListener('change',syncThemeBtn);
+syncThemeBtn();
+
 // 最初に読み込む曲
 const DEFAULT_URL='audio/ballerino.ogg', DEFAULT_TITLE='Ballerino — Yehezkel Raz';
 // 音源は鍵で崩した状態で置き、再生するときだけページの中で元に戻す
