@@ -235,11 +235,11 @@ const INST=[
 ];
 // 音域ごとの絵の具
 const BANDS=[
- {name:'Low',hz:'30–150 Hz',lo:30,hi:150,color:[0.16,0.18,0.29],r:[3.4,5.6],water:1.3,pig:0.5,splat:true},
- {name:'Low-mid',hz:'150–400 Hz',lo:150,hi:400,color:[0.47,0.26,0.13],r:[3.6,6],water:1.15,pig:0.5,stroke:true},
- {name:'Mid',hz:'400 Hz–1.2 kHz',lo:400,hi:1200,color:[0.74,0.13,0.27],r:[2.8,4.4],water:0.95,pig:0.55,stroke:true},
- {name:'High-mid',hz:'1.2–4 kHz',lo:1200,hi:4000,color:[0.88,0.62,0.09],r:[2.4,4],water:0.85,pig:0.75,stroke:true},
- {name:'High',hz:'4–12 kHz',lo:4000,hi:12000,color:[0.11,0.42,0.68],r:[1.4,2.4],water:0.55,pig:0.6,stroke:true},
+ {name:'Low',hz:'30–150 Hz',lo:30,hi:150,color:[0.886,0.314,0.996],r:[3.4,5.6],water:1.3,pig:0.5,splat:true},
+ {name:'Low-mid',hz:'150–400 Hz',lo:150,hi:400,color:[0.227,0.529,0.996],r:[3.6,6],water:1.15,pig:0.5,stroke:true},
+ {name:'Mid',hz:'400 Hz–1.2 kHz',lo:400,hi:1200,color:[0.463,0.733,0.251],r:[2.8,4.4],water:0.95,pig:0.55,stroke:true},
+ {name:'High-mid',hz:'1.2–4 kHz',lo:1200,hi:4000,color:[0.996,0.725,0.243],r:[2.4,4],water:0.85,pig:0.75,stroke:true},
+ {name:'High',hz:'4–12 kHz',lo:4000,hi:12000,color:[1.000,0.525,0.282],r:[1.4,2.4],water:0.55,pig:0.6,stroke:true},
 ];
 BANDS.forEach(s=>{s.base=s.color.slice();s.abs=s.color.map(c=>-Math.log(Math.max(0.03,c)));});
 const lg=document.getElementById('legend');
