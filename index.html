@@ -545,7 +545,8 @@ const tileIdx=(x,y)=>y*GW+(((scrollCol+x)%GW)+GW)%GW;
 function refillPaper(){for(let y=0;y<GH;y++)for(let x=0;x<GW;x++){const i=y*GW+x,s=tileIdx(x,y);paper[i]=paperTile[s];perm[i]=permTile[s];}}
 function scrollTo(target){
  const k=target-scrollCol; if(k===0)return;
- if(k<0||k>=GW){clearPaper();scrollCol=target;refillPaper();return;}
+ if(k<0)return;
+ if(k>=GW){clearPaper();scrollCol=target;refillPaper();return;}
  const arrs=[W,Pr,Pg,Pb,Dr,Dg,Db,paper,perm];
  for(let y=0;y<GH;y++){const row=y*GW; for(const a of arrs){a.copyWithin(row,row+k,row+GW);}
   for(let x=GW-k;x<GW;x++){const i=row+x; W[i]=Pr[i]=Pg[i]=Pb[i]=Dr[i]=Dg[i]=Db[i]=0;}}
@@ -577,82 +578,80 @@ function ensureCtx(){if(ctx)return;ctx=new (window.AudioContext||window.webkitAu
 let outro=null; // 曲の終わり後、色のついた紙が左へ流れ切るまでの演出
 const outroLen=()=>(PHX+14)/cps;
 let cycOff=0, nextSrc=null, nextStartCtx=0; // ループで何周したか（紙の上の位置をずらし続けるため）
-const clock=()=>playing?(useMedia?clips[ci].start+mediaTime():startPos+ctx.currentTime-startCtx):outro!==null?buffer.duration+(performance.now()-outro)/1000:pos;
+const clock=()=>playing?startPos+ctx.currentTime-startCtx:outro!==null?buffer.duration+(performance.now()-outro)/1000:pos;
 const fmt=t=>{t=Math.max(0,t);return `${Math.floor(t/60)}:${String(Math.floor(t%60)).padStart(2,'0')}`;};
 function lowerBound(t){let a=0,b=notes.length;while(a<b){const m=(a+b)>>1;if(notes[m].t<t)a=m+1;else b=m;}return a;}
 
 function stopSource(){for(const n of [srcNode,nextSrc]){if(n){n.onended=null;try{n.stop();}catch(e){}n.disconnect();}} srcNode=null; nextSrc=null;}
 // ---------- video playlist ----------
-// 動画を読み込んだときは、動画プレーヤー自身に音も鳴らさせ、その時刻を全体の時計にする。
-// 複数のクリップは順番に再生し、次のクリップはもう一方のプレーヤーで先に準備しておく。
+// 音は全クリップを1本につないで途切れずに鳴らし、それを全体の時計にする。
+// 映像は音を消して、その時計に後から付いていく（映像が一瞬遅れても、音と紙は止まらない）。
 const vidbox=document.getElementById('vidbox'), deck=document.getElementById('deck');
 const vidToggle=document.getElementById('vidToggle'), vidToggleWrap=document.getElementById('vidToggleWrap'), loopEl=document.getElementById('loopEl');
 let players=[document.getElementById('vidA'),document.getElementById('vidB')], curEl=players[0], nextEl=players[1];
-let clips=[], ci=0, hasVideo=false, useMedia=false, mvT=0, mvPerf=0;
+let clips=[], ci=0, hasVideo=false, useMedia=false, lastHardSeek=0;
 const isVideoFile=f=>/^video\//.test(f.type)||/\.(mov|mp4|m4v)$/i.test(f.name);
-function clearPlayers(){for(const el of players){el.pause();el.removeAttribute('src');el.load();el.dataset.clip='';}}
+function clearPlayers(){for(const el of players){el.pause();el.removeAttribute('src');el.load();el.dataset.clip='';el.playbackRate=1;}}
 function setClips(list){
  vidbox.style.opacity=''; clearPlayers();
  for(const c of clips)if(c.url)URL.revokeObjectURL(c.url);
  clips=list||[]; ci=0; useMedia=clips.length>0;
  hasVideo=clips.some(c=>c.isVideo); vidToggleWrap.hidden=!hasVideo; showVideo();
- if(useMedia){loadInto(curEl,0); prepareNext();}
+ if(useMedia){loadInto(curEl,0); warmNext();}
 }
 function loadInto(el,i){
- if(el.dataset.clip!==String(i)){el.src=clips[i].url; el.dataset.clip=String(i); el.load();}
- el.hidden=(el!==curEl);
-}
-function nextIndex(){return ci+1<clips.length?ci+1:(loopEl.checked?0:-1);}
-function prepareNext(){
- const ni=nextIndex(); if(ni<0||clips.length<2&&ni===ci){ if(clips.length===1&&ni===0){/* 1本のループは同じプレーヤーで頭に戻す */} return; }
- loadInto(nextEl,ni); try{nextEl.currentTime=0;}catch(e){} nextEl.pause();
+ if(el.dataset.clip!==String(i)){el.muted=true; el.src=clips[i].url; el.dataset.clip=String(i); el.load();}
 }
 function showVideo(){const on=hasVideo&&vidToggle.checked; vidbox.hidden=!on; deck.classList.toggle('vid-on',on);}
-// 動画の時刻は数十ミリ秒ごとにしか進まないので、その間は経過時間で補う
-function mediaTime(){
- const ct=curEl.currentTime, now=performance.now();
- if(ct!==mvT||curEl.paused||curEl.seeking){mvT=ct;mvPerf=now;return ct;}
- return mvT+Math.min(0.12,(now-mvPerf)/1000)*curEl.playbackRate;
-}
 function clipAt(t){let i=0;while(i<clips.length-1&&t>=clips[i+1].start)i++;return i;}
-function mediaSeek(t){
- const i=clipAt(t); ci=i; if(curEl.dataset.clip!==String(i)){ if(nextEl.dataset.clip===String(i)){[curEl,nextEl]=[nextEl,curEl];} loadInto(curEl,i); }
- for(const el of players)el.hidden=(el!==curEl);
- const local=Math.max(0,t-clips[i].start);
- try{if(Math.abs(curEl.currentTime-local)>0.03)curEl.currentTime=local;}catch(e){}
- mvT=local; mvPerf=performance.now(); prepareNext();
+function nextIndex(i){return i+1<clips.length?i+1:(loopEl.checked&&clips.length>1?0:-1);}
+// 次のクリップを、音を消した状態で一度動かしてから頭で止めておく（iPhone はこうしないと読み込みを始めない）
+function warmNext(){
+ const ni=nextIndex(ci); if(ni<0)return;
+ if(nextEl.dataset.clip===String(ni)&&nextEl.dataset.warm==='1')return;
+ loadInto(nextEl,ni); nextEl.dataset.warm='1';
+ const pr=nextEl.play(); const park=()=>{nextEl.pause(); try{nextEl.currentTime=0;}catch(e){}};
+ if(pr&&pr.then)pr.then(park).catch(park); else park();
 }
-function playEl(el){el.muted=false; el.playbackRate=1; const pr=el.play(); if(pr&&pr.catch)pr.catch(()=>{el.muted=true;el.play().catch(()=>{});});}
-// iPhone では、ユーザーの操作の中で一度再生しておかないと、あとから音付きで再生できないことがある
-function unlock(el){if(!el.getAttribute('src'))return; const m=el.muted; el.muted=true; const pr=el.play(); if(pr&&pr.then)pr.then(()=>{if(el!==curEl||!playing)el.pause(); el.muted=m;}).catch(()=>{el.muted=m;});}
-// 今のクリップが終わったら、準備しておいた次のクリップへ切り替える。戻り値：続けて再生するか
-function advanceClip(){
- const ni=nextIndex(); if(ni<0)return false;
- if(ni===0)wrapCycle();
- if(clips.length===1){ try{curEl.currentTime=0;}catch(e){} mvT=0; mvPerf=performance.now(); playEl(curEl); ci=0; return true; }
- curEl.pause(); [curEl,nextEl]=[nextEl,curEl]; ci=ni;
- if(curEl.dataset.clip!==String(ci))loadInto(curEl,ci);
+// 映像を時計に合わせる。大きくずれたときだけ位置を飛ばし、小さなずれは再生速度でゆっくり詰める
+function videoFollow(t,force){
+ if(!useMedia||!buffer)return;
+ t=Math.min(Math.max(t,0),buffer.duration-0.01);
+ const i=clipAt(t), local=t-clips[i].start;
+ if(i!==ci||curEl.dataset.clip!==String(i)){
+  const prev=curEl;
+  if(nextEl.dataset.clip===String(i)){[curEl,nextEl]=[nextEl,curEl];} else loadInto(curEl,i);
+  ci=i; if(prev!==curEl){prev.pause();} nextEl.dataset.warm='';
+  for(const el of players)el.hidden=(el!==curEl);
+  force=true;
+ }
  for(const el of players)el.hidden=(el!==curEl);
- try{if(curEl.currentTime>0.05)curEl.currentTime=0;}catch(e){} mvT=0; mvPerf=performance.now();
- playEl(curEl); prepareNext(); return true;
+ const now=performance.now(), drift=curEl.currentTime-local;
+ if(!curEl.seeking&&(force||Math.abs(drift)>0.8)&&now-lastHardSeek>700){
+  if(Math.abs(drift)>(force?0.12:0.04)){try{curEl.currentTime=local;}catch(e){} lastHardSeek=now;}
+  curEl.playbackRate=1;
+ }else if(!curEl.seeking){
+  const r=Math.abs(drift)<0.04?1:clamp(1-drift*0.6,0.85,1.15);
+  if(Math.abs(curEl.playbackRate-r)>0.01)curEl.playbackRate=r;
+ }
+ if(playing&&curEl.paused&&!curEl.ended)curEl.play().catch(()=>{});
+ if(!playing&&!curEl.paused)curEl.pause();
+ if(playing)warmNext();
 }
 // ループで頭に戻るとき：紙はそのまま流し続け、音の位置だけを最初に戻す
 function wrapCycle(){cycOff+=buffer.duration; vIdx=0; active=[];}
 vidToggle.addEventListener('change',showVideo);
-loopEl.addEventListener('change',()=>{if(useMedia)prepareNext(); drawOverview();});
+loopEl.addEventListener('change',()=>{if(useMedia){nextEl.dataset.warm='';warmNext();} drawOverview();});
 
 
 function play(){
  if(!buffer||busy)return; outro=null;
  if(pos>=buffer.duration-0.05){pos=0;seek(0);}
- if(useMedia){
-  mediaSeek(pos); playing=true; playEl(curEl); unlock(nextEl);
- }else{
-  ensureCtx(); if(ctx.state==='suspended')ctx.resume();
-  srcNode=ctx.createBufferSource(); srcNode.buffer=buffer; srcNode.connect(out);
-  startCtx=ctx.currentTime; startPos=pos; srcNode.start(0,pos); playing=true;
- }
+ ensureCtx(); if(ctx.state==='suspended')ctx.resume();
+ srcNode=ctx.createBufferSource(); srcNode.buffer=buffer; srcNode.connect(out);
+ startCtx=ctx.currentTime; startPos=pos; srcNode.start(0,pos); playing=true;
  cta.hidden=true; playBtn.textContent='Pause';
+ videoFollow(pos,true);
 }
 function pause(){outro=null;pos=Math.min(clock(),buffer?buffer.duration:0);playing=false;stopSource();if(useMedia)for(const el of players)el.pause();playBtn.textContent='Play';}
 function seek(t){
@@ -660,7 +659,7 @@ function seek(t){
  if(useMedia)for(const el of players)el.pause();
  pos=clamp(t,0,buffer?buffer.duration:0); vIdx=lowerBound(pos); active=[]; cycOff=0;
  clearPaper(); scrollCol=targetScroll(pos); refillPaper(); drawOverview();
- if(useMedia)mediaSeek(pos);
+ if(useMedia){for(const el of players)el.pause(); videoFollow(pos,true);}
  if(was)play(); else playBtn.textContent='Play';
 }
 
@@ -742,45 +741,28 @@ async function decodeFile(file,label){
   catch(e2){throw new Error(e2&&e2.message==='mp4box'?'Could not load the video reader. Check your connection.':'No usable audio was found in this video.');}
  }
 }
-// 解析用の音声は、モノラル・半分のサンプリングで持つ（音は動画プレーヤーが鳴らすので、これで十分）
-function toLight(buf){
- const sr=buf.sampleRate, f=sr>=44100?2:1, n=Math.floor(buf.length/f), out=new Float32Array(n), ch=buf.numberOfChannels;
- for(let c=0;c<ch;c++){const d=buf.getChannelData(c); for(let i=0;i<n;i++){let v=d[i*f]; if(f===2)v=(v+d[i*f+1])*0.5; out[i]+=v/ch;}}
- return {data:out,sampleRate:sr/f};
-}
 async function loadFiles(files){
  files=Array.from(files||[]).filter(Boolean); if(!files.length)return;
  ensureCtx(); cta.innerHTML='Play<small>SOUND ON</small>';
  busy=true; if(playing)pause(); busyEl.hidden=false;
- const media=files.some(isVideoFile), parts=[]; let total=0, sr=0;
+ const media=files.some(isVideoFile), parts=[];
  try{
   for(let i=0;i<files.length;i++){
    const f=files[i], label=files.length>1?`${i+1} / ${files.length}`:'';
    busyEl.textContent=files.length>1?`Reading clip ${label}`:'Reading file'; metaEl.textContent=`Reading ${f.name}`;
-   const buf=await decodeFile(f,label);
-   if(media){const L=toLight(buf); if(!sr)sr=L.sampleRate;
-    // 解析用の音声のサンプリングをそろえる（ずれていたら簡易に合わせる）
-    let data=L.data; if(L.sampleRate!==sr){const r=L.sampleRate/sr, n=Math.floor(data.length/r), o=new Float32Array(n); for(let k=0;k<n;k++)o[k]=data[Math.floor(k*r)]; data=o;}
-    parts.push({file:f,data,dur:data.length/sr});}
-   else parts.push({file:f,buf,dur:buf.duration});
-   total+=parts[parts.length-1].dur;
+   const buf=await decodeFile(f,label); parts.push({file:f,buf,dur:buf.duration});
   }
  }catch(e){showError(e.message||'This file could not be loaded.');return;}
  const name=files.length>1?`${files.length} clips`:files[0].name;
- if(media){
-  const all=new Float32Array(Math.round(total*sr)); let o=0, start=0; const list=[];
-  for(const p of parts){all.set(p.data.subarray(0,Math.min(p.data.length,all.length-o)),o); o+=p.data.length;
-   list.push({url:URL.createObjectURL(p.file),start,dur:p.dur,isVideo:isVideoFile(p.file)}); start+=p.dur;}
-  const light={sampleRate:sr,numberOfChannels:1,length:all.length,duration:all.length/sr,getChannelData:()=>all};
-  busy=false; setClips(list); await loadBuffer(light,name);
- }else{
-  // 音声ファイルだけなら、1本の音につなげて今まで通り再生する
-  let buf=parts[0].buf;
-  if(parts.length>1){const ch=Math.max(...parts.map(p=>p.buf.numberOfChannels)), rate=parts[0].buf.sampleRate;
-   const len=parts.reduce((a,p)=>a+p.buf.length,0); buf=ctx.createBuffer(ch,len,rate); let o=0;
-   for(const p of parts){for(let c=0;c<ch;c++)buf.getChannelData(c).set(p.buf.getChannelData(Math.min(c,p.buf.numberOfChannels-1)),o); o+=p.buf.length;}}
-  busy=false; setClips(null); await loadBuffer(buf,name);
- }
+ // 全クリップの音を、継ぎ目なく1本につなぐ
+ let buf=parts[0].buf;
+ if(parts.length>1){const ch=Math.max(...parts.map(p=>p.buf.numberOfChannels)), rate=parts[0].buf.sampleRate;
+  const len=parts.reduce((a,p)=>a+p.buf.length,0); buf=ctx.createBuffer(ch,len,rate); let o=0;
+  for(const p of parts){for(let c=0;c<ch;c++)buf.getChannelData(c).set(p.buf.getChannelData(Math.min(c,p.buf.numberOfChannels-1)),o); o+=p.buf.length;}}
+ let list=null;
+ if(media){list=[]; let start=0; for(const p of parts){list.push({url:URL.createObjectURL(p.file),start,dur:p.buf.length/p.buf.sampleRate,isVideo:isVideoFile(p.file)}); start+=p.buf.length/p.buf.sampleRate;}}
+ parts.length=0;
+ busy=false; setClips(list); await loadBuffer(buf,name);
 }
 
 // ---------- painting ----------
@@ -876,16 +858,13 @@ function resize(){dpr=Math.min(2,window.devicePixelRatio||1);
 new ResizeObserver(resize).observe(stage);
 
 // ---------- loop ----------
-let last=performance.now(), acc=0, fps=60, hudT=0;
+let last=performance.now(), acc=0, fps=60, hudT=0, lastCtxT=-1, lastCtxSeen=0;
 function frame(ts){
  const dt=Math.min(0.1,Math.max(0.001,(ts-last)/1000)); last=ts; fps=fps*0.92+(1/dt)*0.08;
  let t=clock();
  if(playing&&buffer){
   const D=buffer.duration;
-  if(useMedia){
-   const c=clips[ci], local=t-c.start;
-   if(curEl.ended||local>=c.dur-0.03){ if(advanceClip())t=clock(); else {t=D;pos=D;playing=false;for(const el of players)el.pause();playBtn.textContent='Play';outro=performance.now();t=clock();} }
-  }else{
+  {
    // ループ：次の再生を、今の音が終わる瞬間ちょうどに予約しておく
    if(loopEl.checked&&!nextSrc&&t>D-0.5){nextSrc=ctx.createBufferSource();nextSrc.buffer=buffer;nextSrc.connect(out);nextStartCtx=startCtx+(D-startPos);nextSrc.start(Math.max(ctx.currentTime,nextStartCtx),0);}
    if(!loopEl.checked&&nextSrc){try{nextSrc.stop();}catch(e){}nextSrc.disconnect();nextSrc=null;}
@@ -895,6 +874,9 @@ function frame(ts){
  }
  if(outro!==null&&t>=buffer.duration+outroLen()){outro=null;pos=buffer.duration+outroLen();t=pos;}
  scrollTo(targetScroll(t+cycOff));
+ // 音の時計が止まっていたら起こし直す（iPhone で音声がシステムに一時停止されたとき）
+ if(playing&&ctx){ if(ctx.currentTime!==lastCtxT){lastCtxT=ctx.currentTime;lastCtxSeen=ts;} else if(ts-lastCtxSeen>300){ctx.resume&&ctx.resume();lastCtxSeen=ts;} }
+ if(useMedia&&(playing||outro!==null))videoFollow(Math.min(t,buffer.duration),false);
  // 紙が流れ切るのに合わせて、映像もフェードアウトする
  if(hasVideo&&buffer){const end=buffer.duration, L=outroLen();
   const a=outro!==null?clamp(1-(t-end)/L,0,1):(!playing&&pos>=end+L-0.01?0:1);
