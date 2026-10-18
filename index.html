@@ -575,43 +575,58 @@ const noteTimes=[];
 function ensureCtx(){if(ctx)return;ctx=new (window.AudioContext||window.webkitAudioContext)();out=ctx.createGain();out.gain.value=0.9;out.connect(ctx.destination);}
 let outro=null; // 曲の終わり後、色のついた紙が左へ流れ切るまでの演出
 const outroLen=()=>(PHX+14)/cps;
-const clock=()=>playing?startPos+ctx.currentTime-startCtx:outro!==null?buffer.duration+(performance.now()-outro)/1000:pos;
+const clock=()=>playing?(useMedia?mediaTime():startPos+ctx.currentTime-startCtx):outro!==null?buffer.duration+(performance.now()-outro)/1000:pos;
 const fmt=t=>{t=Math.max(0,t);return `${Math.floor(t/60)}:${String(Math.floor(t%60)).padStart(2,'0')}`;};
 function lowerBound(t){let a=0,b=notes.length;while(a<b){const m=(a+b)>>1;if(notes[m].t<t)a=m+1;else b=m;}return a;}
 
 function stopSource(){if(srcNode){srcNode.onended=null;try{srcNode.stop();}catch(e){}srcNode.disconnect();srcNode=null;}}
 // ---------- video (when a video file is loaded) ----------
+// 動画を読み込んだときは、動画プレーヤー自身に音も鳴らさせ、その時刻を全体の時計にする
 const vid=document.getElementById('vid'), vidbox=document.getElementById('vidbox'), deck=document.getElementById('deck');
 const vidToggle=document.getElementById('vidToggle'), vidToggleWrap=document.getElementById('vidToggleWrap');
-let vidUrl=null, hasVideo=false;
+let vidUrl=null, hasVideo=false, useMedia=false, mvT=0, mvPerf=0;
 function setVideo(file){
- vidbox.style.opacity=''; if(vidUrl){URL.revokeObjectURL(vidUrl);vidUrl=null;}
- hasVideo=false; vid.removeAttribute('src'); vid.load(); vidToggleWrap.hidden=true; showVideo();
+ vidbox.style.opacity=''; vid.pause(); vid.onloadedmetadata=null;
+ if(vidUrl){URL.revokeObjectURL(vidUrl);vidUrl=null;}
+ hasVideo=false; useMedia=false; vid.removeAttribute('src'); vid.load(); vidToggleWrap.hidden=true; showVideo();
  if(!file)return;
- vidUrl=URL.createObjectURL(file); vid.src=vidUrl;
- vid.onloadedmetadata=()=>{hasVideo=vid.videoWidth>0; vidToggleWrap.hidden=!hasVideo; showVideo(); syncVideo(true);};
+ useMedia=true; vid.muted=true; vid.playbackRate=1;
+ vidUrl=URL.createObjectURL(file); vid.src=vidUrl; vid.load();
+ vid.onloadedmetadata=()=>{hasVideo=vid.videoWidth>0; vidToggleWrap.hidden=!hasVideo; showVideo();};
 }
-function showVideo(){const on=hasVideo&&vidToggle.checked; vidbox.hidden=!on; deck.classList.toggle('vid-on',on); if(on)syncVideo(true); else vid.pause();}
-function syncVideo(force){
- if(!hasVideo||vidbox.hidden)return; const t=Math.min(clock(),buffer?buffer.duration:0);
- if(force||Math.abs(vid.currentTime-t)>0.15){try{vid.currentTime=t;}catch(e){}}
- if(playing&&vid.paused)vid.play().catch(()=>{}); if(!playing&&!vid.paused)vid.pause();
+function showVideo(){const on=hasVideo&&vidToggle.checked; vidbox.hidden=!on; deck.classList.toggle('vid-on',on);}
+// 動画の時刻は数十ミリ秒ごとにしか進まないので、その間は経過時間で補う
+function mediaTime(){
+ const ct=vid.currentTime, now=performance.now();
+ if(ct!==mvT||vid.paused||vid.seeking){mvT=ct;mvPerf=now;return ct;}
+ return mvT+Math.min(0.12,(now-mvPerf)/1000)*vid.playbackRate;
 }
+function mediaSeek(t){try{if(Math.abs(vid.currentTime-t)>0.03)vid.currentTime=t;}catch(e){} mvT=t; mvPerf=performance.now();}
 vidToggle.addEventListener('change',showVideo);
 
 function play(){
- if(!buffer||busy)return; outro=null; ensureCtx(); if(ctx.state==='suspended')ctx.resume();
+ if(!buffer||busy)return; outro=null;
  if(pos>=buffer.duration-0.05){pos=0;seek(0);}
- srcNode=ctx.createBufferSource(); srcNode.buffer=buffer; srcNode.connect(out);
- startCtx=ctx.currentTime; startPos=pos; srcNode.start(0,pos); playing=true;
- cta.hidden=true; playBtn.textContent='Pause'; syncVideo(true);
+ if(useMedia){
+  mediaSeek(pos); vid.muted=false; vid.playbackRate=1;
+  const pr=vid.play(); if(pr&&pr.catch)pr.catch(()=>{ // 音付きで再生できなかったときは、ミュートでも進める
+   vid.muted=true; vid.play().catch(()=>{});});
+  playing=true;
+ }else{
+  ensureCtx(); if(ctx.state==='suspended')ctx.resume();
+  srcNode=ctx.createBufferSource(); srcNode.buffer=buffer; srcNode.connect(out);
+  startCtx=ctx.currentTime; startPos=pos; srcNode.start(0,pos); playing=true;
+ }
+ cta.hidden=true; playBtn.textContent='Pause';
 }
-function pause(){outro=null;pos=Math.min(clock(),buffer?buffer.duration:0);playing=false;stopSource();playBtn.textContent='Play';syncVideo(true);}
+function pause(){outro=null;pos=Math.min(clock(),buffer?buffer.duration:0);playing=false;stopSource();if(useMedia)vid.pause();playBtn.textContent='Play';}
 function seek(t){
  outro=null; const was=playing; if(playing){playing=false;stopSource();}
+ if(useMedia)vid.pause();
  pos=clamp(t,0,buffer?buffer.duration:0); vIdx=lowerBound(pos); active=[];
  clearPaper(); scrollCol=targetScroll(pos); refillPaper(); drawOverview();
- if(was)play(); else {playBtn.textContent='Play'; syncVideo(true);}
+ if(useMedia)mediaSeek(pos);
+ if(was)play(); else playBtn.textContent='Play';
 }
 
 async function loadBuffer(buf,name){
@@ -689,14 +704,14 @@ async function loadFile(file){
  try{ab=await file.arrayBuffer();}catch(e){showError('This file could not be read.');return;}
  const isVideo=/^video\//.test(file.type)||/\.(mov|mp4|m4v|m4a)$/i.test(file.name);
  let buf=null;
- try{buf=await decode(ab.slice(0));}
+ try{buf=await decode(ab);}
  catch(e){
   if(isVideo){
-   try{busyEl.textContent='Extracting audio from video'; const M=await loadMp4box(); const adts=await videoToAdts(M,ab); buf=await decode(adts);}
+   try{busyEl.textContent='Extracting audio from video'; const M=await loadMp4box(); const ab2=await file.arrayBuffer(); const adts=await videoToAdts(M,ab2); buf=await decode(adts);}
    catch(e2){showError(e2&&e2.message==='mp4box'?'Could not load the video reader. Check your connection.':'No usable audio was found in this video.');return;}
   }else{showError('This file could not be decoded. Try MP3, WAV, M4A, MOV or MP4.');return;}
  }
- busy=false; setVideo(isVideo?file:null); await loadBuffer(buf,file.name);
+ ab=null; busy=false; setVideo(isVideo?file:null); await loadBuffer(buf,file.name);
 }
 
 // ---------- painting ----------
@@ -792,9 +807,9 @@ let last=performance.now(), acc=0, fps=60, hudT=0;
 function frame(ts){
  const dt=Math.min(0.1,Math.max(0.001,(ts-last)/1000)); last=ts; fps=fps*0.92+(1/dt)*0.08;
  let t=clock();
- if(playing&&buffer&&t>=buffer.duration){pos=buffer.duration;playing=false;stopSource();playBtn.textContent='Play';outro=performance.now()-(t-buffer.duration)*1000;t=clock();}
+ if(playing&&buffer&&(t>=buffer.duration||(useMedia&&vid.ended))){t=Math.max(t,buffer.duration);pos=buffer.duration;playing=false;stopSource();if(useMedia)vid.pause();playBtn.textContent='Play';outro=performance.now()-(t-buffer.duration)*1000;t=clock();}
  if(outro!==null&&t>=buffer.duration+outroLen()){outro=null;pos=buffer.duration+outroLen();t=pos;}
- scrollTo(targetScroll(t)); if(hasVideo&&playing)syncVideo(false); else if(hasVideo&&outro!==null&&!vid.paused)vid.pause();
+ scrollTo(targetScroll(t));
  // 紙が流れ切るのに合わせて、映像もフェードアウトする
  if(hasVideo&&buffer){const end=buffer.duration, L=outroLen();
   const a=outro!==null?clamp(1-(t-end)/L,0,1):(!playing&&pos>=end+L-0.01?0:1);
