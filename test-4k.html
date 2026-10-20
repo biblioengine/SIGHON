@@ -36,9 +36,12 @@ td.n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
 <p class="muted">動画を1本選ぶと、次の順番で自動で測ります。終わるまで画面をそのままにしてください（ほかのSIGHONは閉じておいてください）。</p>
 <ol class="muted" style="margin:4px 0 10px;padding-left:20px">
 <li>元の動画を再生（SIGHONと同じ方式／位置合わせなし）</li>
-<li>720pに作り直す（かかった時間を測る）</li>
-<li>720pの動画を再生（SIGHONと同じ方式／位置合わせなし）</li>
+<li>選んだ解像度に作り直す（かかった時間を測る）</li>
+<li>作り直した動画を再生（SIGHONと同じ方式／位置合わせなし）</li>
 </ol>
+<p style="margin:8px 0 10px">作り直す解像度：
+<label><input type="radio" name="res" value="1080" checked> 1080p</label>　
+<label><input type="radio" name="res" value="720"> 720p</label></p>
 <label class="btn">動画を選ぶ<input type="file" id="file" accept="video/*,.mov,.mp4,.m4v"></label>
 <div id="status"></div>
 <div class="bar"><i id="prog"></i></div>
@@ -49,7 +52,7 @@ td.n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
 <tbody></tbody>
 </table>
 <div id="summary"><h2>まとめ</h2><div id="sumBody"></div></div>
-<p><a id="dl" class="btn sub" hidden download="sighon-720p.mp4">作り直した720pの動画を保存</a> <button class="btn sub" id="copy" hidden>結果をコピー</button></p>
+<p><a id="dl" class="btn sub" hidden download="sighon-small.mp4">作り直した動画を保存</a> <button class="btn sub" id="copy" hidden>結果をコピー</button></p>
 <div id="log"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/mp4box@0.5.2/dist/mp4box.all.min.js"></script>
@@ -66,7 +69,8 @@ const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 const withTimeout=(p,ms,msg)=>Promise.race([p,new Promise((_,rej)=>setTimeout(()=>rej(new Error(msg)),ms))]);
 const f1=x=>x.toFixed(1), f2=x=>x.toFixed(2);
 const RUN_SEC=8;            // 1回の再生で測る長さ
-const TARGET_LONG=1280;     // 作り直す動画の長い辺（720p）
+let TARGET_LONG=1920;       // 作り直す動画の長い辺（1080pなら1920、720pなら1280）
+let RES='1080p';
 const STALL_MS=100;         // これ以上フレームが更新されなければ「止まり」とみなす
 const results=[];
 let info0=null, convInfo=null;
@@ -135,15 +139,15 @@ function descriptionOf(mp4,trackId){
  return undefined;
 }
 async function pickEncoder(w,h,fps){
- const br=Math.round(w*h*fps*0.09); // 720p30でおよそ2.5Mbps
- const cands=[{codec:'avc1.640028',mux:'avc'},{codec:'avc1.4d0028',mux:'avc'},{codec:'avc1.42e01f',mux:'avc'},{codec:'vp09.00.31.08',mux:'vp9'}];
+ const br=Math.round(w*h*fps*0.15); // 720p30でおよそ4Mbps、1080p30でおよそ9Mbps
+ const cands=[{codec:'avc1.64002a',mux:'avc'},{codec:'avc1.640028',mux:'avc'},{codec:'avc1.4d0028',mux:'avc'},{codec:'avc1.42e01f',mux:'avc'},{codec:'vp09.00.40.08',mux:'vp9'}];
  for(const c of cands){const cfg={codec:c.codec,width:w,height:h,bitrate:br,framerate:fps,latencyMode:'quality'}; if(c.mux==='avc')cfg.avc={format:'avc'};
   try{const s=await VideoEncoder.isConfigSupported(cfg); if(s.supported)return {cfg,mux:c.mux};}catch(e){}}
  return null;
 }
 async function convert(file){
  if(!('VideoDecoder' in window)||!('VideoEncoder' in window))throw new Error('このブラウザは動画の作り直し（WebCodecs）に対応していません');
- setStatus('720pに作り直す準備中…');
+ setStatus(RES+'に作り直す準備中…');
  if(typeof MP4Box==='undefined'||typeof Mp4Muxer==='undefined')throw new Error('動画を読む部品を読み込めませんでした（通信を確認してください）');
  const t0=performance.now();
  const mp4=MP4Box.createFile();
@@ -195,15 +199,16 @@ async function convert(file){
    const s=queue.shift();
    decoder.decode(new EncodedVideoChunk({type:s.is_sync?'key':'delta',timestamp:Math.round(1e6*s.cts/s.timescale),duration:Math.round(1e6*s.duration/s.timescale),data:s.data}));
    nIn++; lastRelease=s.number;
-   if(nIn%15===0){mp4.releaseUsedSamples(track.id,lastRelease); const el=(performance.now()-t0)/1000; setProg(nIn/total); setStatus(`720pに作り直し中… ${Math.round(nIn/total*100)}%（${f1(el)}秒経過）`); await sleep(0);}
+   if(nIn%15===0){mp4.releaseUsedSamples(track.id,lastRelease); const el=(performance.now()-t0)/1000; setProg(nIn/total); setStatus(`${RES}に作り直し中… ${Math.round(nIn/total*100)}%（${f1(el)}秒経過）`); await sleep(0);}
   }
  };
  while(true){await pump(); if(nIn>=total)break; if(!(await feed())){mp4.flush(); await pump(); break;}}
- setStatus('720pに作り直し中…仕上げ'); await withTimeout(decoder.flush(),30000,`展開の仕上げで止まりました（展開${nOut}コマ）`); await withTimeout(encoder.flush(),30000,`書き出しの仕上げで止まりました（書き出し${nEnc}コマ）`); decoder.close(); encoder.close();
+ setStatus(RES+'に作り直し中…仕上げ'); await withTimeout(decoder.flush(),30000,`展開の仕上げで止まりました（展開${nOut}コマ）`); await withTimeout(encoder.flush(),30000,`書き出しの仕上げで止まりました（書き出し${nEnc}コマ）`); decoder.close(); encoder.close();
  if(decErr||encErr)throw (decErr||encErr);
  muxer.finalize();
  const buf=muxer.target.buffer; const sec=(performance.now()-t0)/1000;
  const vdur=track.movie_duration/track.movie_timescale||track.duration/track.timescale;
+ log('target='+RES);
  convInfo={sec,vdur,ratio:sec/vdur,inFrames:nIn,outFrames:nEnc,w:ow,h:oh,codec:enc.cfg.codec,srcCodec:track.codec,rot,fps,size:buf.byteLength,readMB:readMB/1048576};
  log(`converted in ${f1(sec)}s, frames in=${nIn} out=${nEnc}, size=${f1(buf.byteLength/1048576)}MB`);
  setProg(0);
@@ -216,6 +221,7 @@ async function probe(url){const v=document.createElement('video');v.muted=true;v
  const r={w:v.videoWidth,h:v.videoHeight,dur:v.duration}; v.removeAttribute('src'); v.load(); return r;}
 $('file').addEventListener('change',async e=>{
  const file=e.target.files[0]; if(!file)return; e.target.value='';
+ const rv=(document.querySelector('input[name=res]:checked')||{}).value||'1080'; TARGET_LONG=rv==='720'?1280:1920; RES=rv+'p';
  results.length=0; tbody.innerHTML=''; $('tbl').hidden=true; $('summary').style.display='none'; $('dl').hidden=true; $('copy').hidden=true; logLines.length=0; convInfo=null;
  const ua=navigator.userAgent; log(ua);
  const url=URL.createObjectURL(file);
@@ -229,22 +235,22 @@ $('file').addEventListener('change',async e=>{
   let small=null;
   try{small=await convert(file);}catch(err){log('convert failed: '+(err&&err.message||err)); convInfo={error:(err&&err.message)||String(err)};}
   if(small){const surl=URL.createObjectURL(small); $('dl').href=surl; $('dl').hidden=false;
-   await playTest(surl,'720p（SIGHON方式）','sighon');
-   await playTest(surl,'720p（位置合わせなし）','plain');}
+   await playTest(surl,RES+'（SIGHON方式）','sighon');
+   await playTest(surl,RES+'（位置合わせなし）','plain');}
   summarize(file);
  }catch(err){setStatus('エラー：'+(err&&err.message||err)); log('error: '+(err&&err.stack||err));}
 });
 function summarize(file){
  const by=k=>results.find(r=>r.label===k);
- const oS=by('元の動画（SIGHON方式）'), oP=by('元の動画（位置合わせなし）'), sS=by('720p（SIGHON方式）'), sP=by('720p（位置合わせなし）');
+ const oS=by('元の動画（SIGHON方式）'), oP=by('元の動画（位置合わせなし）'), sS=by(RES+'（SIGHON方式）'), sP=by(RES+'（位置合わせなし）');
  const lines=[];
- if(convInfo&&convInfo.error)lines.push(`<p class="ng">720pへの作り直しに失敗：${convInfo.error}</p>`);
+ if(convInfo&&convInfo.error)lines.push(`<p class="ng">${RES}への作り直しに失敗：${convInfo.error}</p>`);
  else if(convInfo)lines.push(`<p>作り直しにかかった時間：<b>${f1(convInfo.sec)}秒</b>（動画の長さ ${f1(convInfo.vdur)}秒の <b>${f2(convInfo.ratio)}倍</b>）<br>${convInfo.w}×${convInfo.h}・${f1(convInfo.size/1048576)}MB（元は ${f1(file.size/1048576)}MB）</p>`);
  const desc=r=>r?`動き出し ${r.first===null?'—':f2(r.first/1000)+'秒'}、出だしの止まり <b class="${r.early?'ng':'ok'}">${r.early}回</b>、その後 <b class="${r.late?'ng':'ok'}">${r.late}回</b>、最長 ${f2(r.maxGap/1000)}秒${r.dropped===null?'':'、落ちたコマ '+r.dropped}`:'—';
  lines.push(`<p>元の動画・SIGHON方式：${desc(oS)}${oS&&oS.seeks.length?'、位置合わせ '+oS.seeks.length+'回':''}</p>`);
  lines.push(`<p>元の動画・位置合わせなし：${desc(oP)}</p>`);
- if(sS)lines.push(`<p>720p・SIGHON方式：${desc(sS)}${sS.seeks.length?'、位置合わせ '+sS.seeks.length+'回':''}</p>`);
- if(sP)lines.push(`<p>720p・位置合わせなし：${desc(sP)}</p>`);
+ if(sS)lines.push(`<p>${RES}・SIGHON方式：${desc(sS)}${sS.seeks.length?'、位置合わせ '+sS.seeks.length+'回':''}</p>`);
+ if(sP)lines.push(`<p>${RES}・位置合わせなし：${desc(sP)}</p>`);
  $('sumBody').innerHTML=lines.join(''); $('summary').style.display='block'; $('copy').hidden=false;
  setStatus('テスト完了。この画面のスクリーンショットを送ってください。');
  window.scrollTo({top:document.body.scrollHeight,behavior:'smooth'});
