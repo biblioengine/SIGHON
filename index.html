@@ -574,34 +574,42 @@ function applyColors(keepLegend){
 let ctx=null, out=null, buffer=null, an=null, notes=[], srcNode=null, playing=false, startCtx=0, startPos=0, pos=0;
 let vIdx=0, active=[], busy=false, title='Sample';
 const noteTimes=[];
-// iPhone / iPad では、Web Audio の音をページ内の音声プレーヤー経由で鳴らす。
-// こうすると「メディアの音」として扱われ、画面収録にも入る。
+// iPhone / iPad では、音をふつうの音声プレーヤー（<audio>）で鳴らす。
+// Web Audio の音は画面収録に入らないことがあるが、音声プレーヤーの音は音楽の再生と同じ扱いで収録される。
 const isIOS=/iP(hone|ad|od)/.test(navigator.userAgent)||(/Macintosh/.test(navigator.userAgent)&&navigator.maxTouchPoints>1);
-let outEl=null, routed=false;
+const elemMode=isIOS||!!window.__forceElementOut;
+const aEl=document.createElement('audio'); aEl.setAttribute('playsinline',''); aEl.preload='auto'; aEl.hidden=true; document.body.appendChild(aEl);
+let aUrl=null, aT=0, aPerf=0, aPrev=0;
 function ensureCtx(){
  if(ctx)return;
- // 音の種類を「再生（音楽）」にする（iOS 16.4 以降）。マナーモードでも鳴り、画面収録の対象になる
  try{if(navigator.audioSession)navigator.audioSession.type='playback';}catch(e){}
- ctx=new (window.AudioContext||window.webkitAudioContext)(); out=ctx.createGain(); out.gain.value=0.9;
- if((isIOS||window.__forceElementOut)&&ctx.createMediaStreamDestination){
-  try{const dest=ctx.createMediaStreamDestination(); out.connect(dest);
-   outEl=document.createElement('audio'); outEl.setAttribute('playsinline',''); outEl.srcObject=dest.stream; outEl.hidden=true; document.body.appendChild(outEl); routed=true;}
-  catch(e){routed=false; out.connect(ctx.destination);}
- }else out.connect(ctx.destination);
+ ctx=new (window.AudioContext||window.webkitAudioContext)(); out=ctx.createGain(); out.gain.value=0.9; out.connect(ctx.destination);
 }
-// 音声プレーヤーで鳴らせなかったときは、これまで通り直接スピーカーへ
-function startOutput(){
- if(!routed||!outEl||!outEl.paused)return;
- const pr=outEl.play(); if(pr&&pr.catch)pr.catch(()=>{routed=false; try{out.connect(ctx.destination);}catch(e){}});
+function setOutputBlob(blob){ if(!elemMode)return; if(aUrl)URL.revokeObjectURL(aUrl); aUrl=URL.createObjectURL(blob); aEl.src=aUrl; aEl.load(); aT=0; aPrev=0; }
+// つないだ音を WAV ファイルにする（音声プレーヤーで鳴らすため）
+function encodeWav(buf){
+ const ch=Math.min(2,buf.numberOfChannels), sr=buf.sampleRate, n=buf.length, bytes=n*ch*2, ab=new ArrayBuffer(44+bytes), v=new DataView(ab);
+ const w=(o,str)=>{for(let i=0;i<str.length;i++)v.setUint8(o+i,str.charCodeAt(i));};
+ w(0,'RIFF');v.setUint32(4,36+bytes,true);w(8,'WAVE');w(12,'fmt ');v.setUint32(16,16,true);v.setUint16(20,1,true);v.setUint16(22,ch,true);
+ v.setUint32(24,sr,true);v.setUint32(28,sr*ch*2,true);v.setUint16(32,ch*2,true);v.setUint16(34,16,true);w(36,'data');v.setUint32(40,bytes,true);
+ const d=[...Array(ch)].map((_,c)=>buf.getChannelData(c)); let o=44;
+ for(let i=0;i<n;i++)for(let c=0;c<ch;c++){const x=Math.max(-1,Math.min(1,d[c][i]));v.setInt16(o,x<0?x*0x8000:x*0x7FFF,true);o+=2;}
+ return new Blob([ab],{type:'audio/wav'});
+}
+// 音声プレーヤーの時刻は飛び飛びに進むので、その間は経過時間で補う
+function elemTime(){
+ const ct=aEl.currentTime, now=performance.now();
+ if(ct!==aT||aEl.paused||aEl.seeking){aT=ct;aPerf=now;return ct;}
+ return aT+Math.min(0.15,(now-aPerf)/1000);
 }
 let outro=null; // 曲の終わり後、色のついた紙が左へ流れ切るまでの演出
 const outroLen=()=>(PHX+14)/cps;
 let cycOff=0, nextSrc=null, nextStartCtx=0; // ループで何周したか（紙の上の位置をずらし続けるため）
-const clock=()=>playing?startPos+ctx.currentTime-startCtx:outro!==null?buffer.duration+(performance.now()-outro)/1000:pos;
+const clock=()=>playing?(elemMode?elemTime():startPos+ctx.currentTime-startCtx):outro!==null?buffer.duration+(performance.now()-outro)/1000:pos;
 const fmt=t=>{t=Math.max(0,t);return `${Math.floor(t/60)}:${String(Math.floor(t%60)).padStart(2,'0')}`;};
 function lowerBound(t){let a=0,b=notes.length;while(a<b){const m=(a+b)>>1;if(notes[m].t<t)a=m+1;else b=m;}return a;}
 
-function stopSource(){for(const n of [srcNode,nextSrc]){if(n){n.onended=null;try{n.stop();}catch(e){}n.disconnect();}} srcNode=null; nextSrc=null;}
+function stopSource(){if(elemMode)aEl.pause(); for(const n of [srcNode,nextSrc]){if(n){n.onended=null;try{n.stop();}catch(e){}n.disconnect();}} srcNode=null; nextSrc=null;}
 // ---------- video playlist ----------
 // 音は全クリップを1本につないで途切れずに鳴らし、それを全体の時計にする。
 // 映像は音を消して、その時計に後から付いていく（映像が一瞬遅れても、音と紙は止まらない）。
@@ -666,15 +674,21 @@ loopEl.addEventListener('change',()=>{if(useMedia){nextEl.dataset.warm='';warmNe
 function play(){
  if(!buffer||busy)return; outro=null;
  if(pos>=buffer.duration-0.05){pos=0;seek(0);}
- ensureCtx(); if(ctx.state==='suspended')ctx.resume(); startOutput();
- srcNode=ctx.createBufferSource(); srcNode.buffer=buffer; srcNode.connect(out);
- startCtx=ctx.currentTime; startPos=pos; srcNode.start(0,pos); playing=true;
+ ensureCtx();
+ if(elemMode){
+  try{aEl.currentTime=pos;}catch(e){} aT=pos; aPrev=pos; aPerf=performance.now(); aEl.loop=loopEl.checked;
+  const pr=aEl.play(); if(pr&&pr.catch)pr.catch(()=>{}); playing=true;
+ }else{
+  if(ctx.state==='suspended')ctx.resume();
+  srcNode=ctx.createBufferSource(); srcNode.buffer=buffer; srcNode.connect(out);
+  startCtx=ctx.currentTime; startPos=pos; srcNode.start(0,pos); playing=true;
+ }
  cta.hidden=true; playBtn.textContent='Pause';
  videoFollow(pos,true);
 }
 function pause(){outro=null;pos=Math.min(clock(),buffer?buffer.duration:0);playing=false;stopSource();if(useMedia)for(const el of players)el.pause();playBtn.textContent='Play';}
 function seek(t){
- outro=null; const was=playing; if(playing){playing=false;stopSource();}
+ outro=null; const was=playing; if(elemMode)aEl.pause(); if(playing){playing=false;stopSource();}
  if(useMedia)for(const el of players)el.pause();
  pos=clamp(t,0,buffer?buffer.duration:0); vIdx=lowerBound(pos); active=[]; cycOff=0;
  clearPaper(); scrollCol=targetScroll(pos); refillPaper(); drawOverview();
@@ -781,7 +795,7 @@ async function loadFiles(files){
  let list=null;
  if(media){list=[]; let start=0; for(const p of parts){list.push({url:URL.createObjectURL(p.file),start,dur:p.buf.length/p.buf.sampleRate,isVideo:isVideoFile(p.file)}); start+=p.buf.length/p.buf.sampleRate;}}
  parts.length=0;
- busy=false; setClips(list); await loadBuffer(buf,name);
+ busy=false; setClips(list); if(elemMode){busyEl.textContent='Preparing audio'; setOutputBlob(encodeWav(buf));} await loadBuffer(buf,name);
 }
 
 // ---------- painting ----------
@@ -881,7 +895,13 @@ let last=performance.now(), acc=0, fps=60, hudT=0, lastCtxT=-1, lastCtxSeen=0;
 function frame(ts){
  const dt=Math.min(0.1,Math.max(0.001,(ts-last)/1000)); last=ts; fps=fps*0.92+(1/dt)*0.08;
  let t=clock();
- if(playing&&buffer){
+ if(playing&&buffer&&elemMode){
+  const D=buffer.duration;
+  aEl.loop=loopEl.checked;
+  if(loopEl.checked&&t<aPrev-0.5){wrapCycle();}            // 音声プレーヤーが頭に戻った＝ループの1周
+  else if(!loopEl.checked&&(aEl.ended||t>=D-0.02)){t=D;pos=D;playing=false;aEl.pause();playBtn.textContent='Play';outro=performance.now();t=clock();}
+  aPrev=t;
+ }else if(playing&&buffer){
   const D=buffer.duration;
   {
    // ループ：次の再生を、今の音が終わる瞬間ちょうどに予約しておく
@@ -894,7 +914,7 @@ function frame(ts){
  if(outro!==null&&t>=buffer.duration+outroLen()){outro=null;pos=buffer.duration+outroLen();t=pos;}
  scrollTo(targetScroll(t+cycOff));
  // 音の時計が止まっていたら起こし直す（iPhone で音声がシステムに一時停止されたとき）
- if(playing&&ctx){ if(ctx.currentTime!==lastCtxT){lastCtxT=ctx.currentTime;lastCtxSeen=ts;} else if(ts-lastCtxSeen>300){ctx.resume&&ctx.resume();lastCtxSeen=ts;} }
+ if(playing&&ctx&&!elemMode){ if(ctx.currentTime!==lastCtxT){lastCtxT=ctx.currentTime;lastCtxSeen=ts;} else if(ts-lastCtxSeen>300){ctx.resume&&ctx.resume();lastCtxSeen=ts;} }
  if(useMedia&&(playing||outro!==null))videoFollow(Math.min(t,buffer.duration),false);
  // 紙が流れ切るのに合わせて、映像もフェードアウトする
  if(hasVideo&&buffer){const end=buffer.duration, L=outroLen();
@@ -949,8 +969,8 @@ function unscramble(ab){const b=new Uint8Array(ab), R=mulberry32(0x5A1907E5); le
  for(let i=0;i<b.length;i++){if((i&3)===0)w=Math.floor(R()*4294967296)>>>0; b[i]^=(w>>>(8*(i&3)))&255;} return b.buffer;}
 async function loadDefault(){
  setClips(null); cycOff=0; busyEl.hidden=false; busyEl.textContent='Loading'; cta.innerHTML='Play<small>SOUND ON</small>';
- try{ensureCtx(); const r=await fetch(DEFAULT_URL); if(!r.ok)throw 0; const buf=await ctx.decodeAudioData(unscramble(await r.arrayBuffer())); await loadBuffer(buf,DEFAULT_TITLE);}
- catch(e){ try{const b=await makeDemo(); await loadBuffer(b,'Sample');}catch(_){busyEl.hidden=true;metaEl.textContent='Load an audio file';} }
+ try{ensureCtx(); const r=await fetch(DEFAULT_URL); if(!r.ok)throw 0; const raw=unscramble(await r.arrayBuffer()); if(elemMode)setOutputBlob(new Blob([raw],{type:'audio/mpeg'})); const buf=await ctx.decodeAudioData(raw); await loadBuffer(buf,DEFAULT_TITLE);}
+ catch(e){ try{const b=await makeDemo(); if(elemMode)setOutputBlob(encodeWav(b)); await loadBuffer(b,'Sample');}catch(_){busyEl.hidden=true;metaEl.textContent='Load an audio file';} }
 }
 document.getElementById('demo').addEventListener('click',()=>{if(!busy)loadDefault();});
 sensEl.addEventListener('input',()=>{document.getElementById('sensOut').textContent=(+sensEl.value).toFixed(2);});
