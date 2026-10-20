@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<link rel="icon" type="image/png" sizes="32x32" href="icon/sighon-icon-32.png">
-<link rel="apple-touch-icon" href="icon/sighon-icon-180.png">
+<link rel="icon" type="image/png" sizes="32x32" href="icon/sighon-icon-32.png?v=2">
+<link rel="apple-touch-icon" href="icon/sighon-icon-180.png?v=2">
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="apple-mobile-web-app-title" content="SIGHON">
 <meta name="theme-color" content="#e8e8eb">
@@ -698,6 +698,10 @@ function play(){
  videoFollow(pos,true);
 }
 function pause(){outro=null;pos=Math.min(clock(),buffer?buffer.duration:0);playing=false;stopSource();if(useMedia)for(const el of players)el.pause();playBtn.textContent='Play';}
+// アプリが裏に回ったら自動で一時停止する（戻ってきても自動では再開しない）
+function pauseIfHidden(){if(document.hidden&&playing)pause();}
+document.addEventListener('visibilitychange',pauseIfHidden);
+window.addEventListener('pagehide',()=>{if(playing)pause();});
 function seek(t){
  outro=null; const was=playing; if(elemMode)aEl.pause(); if(playing){playing=false;stopSource();}
  if(useMedia)for(const el of players)el.pause();
