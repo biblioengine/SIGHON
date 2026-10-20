@@ -44,15 +44,16 @@ h1 em{font-style:italic}
 .privacy{margin:-22px 0 0;font-size:12px;line-height:1.6;color:var(--muted);max-height:0;opacity:0;overflow:hidden;transition:opacity .35s ease,max-height .35s ease,margin .35s ease}
 .privacy.show{opacity:1;max-height:4em;margin-top:-10px}
 .panel{display:flex;flex-direction:column;gap:22px;min-width:0}
-.vidbox{display:flex;justify-content:center;background:#0e0d10;margin-bottom:10px}
-.vidbox video{display:block;height:30vh;max-width:100%;object-fit:contain}
+/* 映像の外側は塗らず、ページの背景をそのまま見せる（縦動画の左右が黒くならないように） */
+.vidbox{display:flex;justify-content:center;background:transparent;margin-bottom:10px}
+.vidbox video{display:block;aspect-ratio:var(--ar,1.7778);width:min(100%,calc(30vh * var(--ar,1.7778)));height:auto}
 .deck.vid-on .stage{width:min(100%,calc(46vh * 16 / 9))}
 /* iPhone を横にしたとき：上段に映像と操作パネル、下段に紙 */
 @media (orientation:landscape) and (max-height:560px){
   .deck.vid-on{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);grid-template-areas:"vid panel" "stage stage";gap:14px 18px}
   .deck.vid-on .stickybox{display:contents}
   .deck.vid-on .vidbox{grid-area:vid;margin:0;align-self:start}
-  .deck.vid-on .vidbox video{height:34vh}
+  .deck.vid-on .vidbox video{width:min(100%,calc(34vh * var(--ar,1.7778)))}
   .deck.vid-on .panel{grid-area:panel;gap:14px;align-self:center}
   .deck.vid-on .stage{grid-area:stage;width:min(100%,calc(50vh * 16 / 9))}
   .wrap:has(.deck.vid-on){padding-block:6px 40px;gap:10px}
@@ -679,6 +680,8 @@ function videoFollow(t,force){
 // ループで頭に戻るとき：紙はそのまま流し続け、音の位置だけを最初に戻す
 function wrapCycle(){cycOff+=buffer.duration; vIdx=0; active=[];}
 vidToggle.addEventListener('change',showVideo);
+// 映像の縦横比を枠に渡す（枠を映像と同じ形にして、外側に黒い帯を出さない）
+for(const v of players)v.addEventListener('loadedmetadata',()=>{if(v.videoWidth&&v.videoHeight)v.style.setProperty('--ar',(v.videoWidth/v.videoHeight).toFixed(4));});
 loopEl.addEventListener('change',()=>{if(useMedia){nextEl.dataset.warm='';warmNext();} drawOverview();});
 
 
