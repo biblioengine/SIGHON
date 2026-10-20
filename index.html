@@ -582,7 +582,11 @@ const aEl=document.createElement('audio'); aEl.setAttribute('playsinline',''); a
 let aUrl=null, aT=0, aPerf=0, aPrev=0;
 function ensureCtx(){
  if(ctx)return;
- try{if(navigator.audioSession)navigator.audioSession.type='playback';}catch(e){}
+ if(elemMode){
+  // iPhone では音を出す Web Audio を一切作らない（作るだけで画面収録の音が入らなくなる）。
+  // 音声の読み取り（解析）には、音を出さない計算専用の仕組みだけを使う。
+  const O=window.OfflineAudioContext||window.webkitOfflineAudioContext; ctx=new O(2,44100,44100); return;
+ }
  ctx=new (window.AudioContext||window.webkitAudioContext)(); out=ctx.createGain(); out.gain.value=0.9; out.connect(ctx.destination);
 }
 function setOutputBlob(blob){ if(!elemMode)return; if(aUrl)URL.revokeObjectURL(aUrl); aUrl=URL.createObjectURL(blob); aEl.src=aUrl; aEl.load(); aT=0; aPrev=0; }
@@ -969,7 +973,7 @@ function unscramble(ab){const b=new Uint8Array(ab), R=mulberry32(0x5A1907E5); le
  for(let i=0;i<b.length;i++){if((i&3)===0)w=Math.floor(R()*4294967296)>>>0; b[i]^=(w>>>(8*(i&3)))&255;} return b.buffer;}
 async function loadDefault(){
  setClips(null); cycOff=0; busyEl.hidden=false; busyEl.textContent='Loading'; cta.innerHTML='Play<small>SOUND ON</small>';
- try{ensureCtx(); const r=await fetch(DEFAULT_URL); if(!r.ok)throw 0; const raw=unscramble(await r.arrayBuffer()); if(elemMode)setOutputBlob(new Blob([raw],{type:'audio/mpeg'})); const buf=await ctx.decodeAudioData(raw); await loadBuffer(buf,DEFAULT_TITLE);}
+ try{ensureCtx(); const r=await fetch(DEFAULT_URL); if(!r.ok)throw 0; const raw=unscramble(await r.arrayBuffer()); if(elemMode)setOutputBlob(new Blob([raw],{type:'audio/mpeg'})); const buf=await decode(raw); await loadBuffer(buf,DEFAULT_TITLE);}
  catch(e){ try{const b=await makeDemo(); if(elemMode)setOutputBlob(encodeWav(b)); await loadBuffer(b,'Sample');}catch(_){busyEl.hidden=true;metaEl.textContent='Load an audio file';} }
 }
 document.getElementById('demo').addEventListener('click',()=>{if(!busy)loadDefault();});
