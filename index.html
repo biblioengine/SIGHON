@@ -574,7 +574,26 @@ function applyColors(keepLegend){
 let ctx=null, out=null, buffer=null, an=null, notes=[], srcNode=null, playing=false, startCtx=0, startPos=0, pos=0;
 let vIdx=0, active=[], busy=false, title='Sample';
 const noteTimes=[];
-function ensureCtx(){if(ctx)return;ctx=new (window.AudioContext||window.webkitAudioContext)();out=ctx.createGain();out.gain.value=0.9;out.connect(ctx.destination);}
+// iPhone / iPad では、Web Audio の音をページ内の音声プレーヤー経由で鳴らす。
+// こうすると「メディアの音」として扱われ、画面収録にも入る。
+const isIOS=/iP(hone|ad|od)/.test(navigator.userAgent)||(/Macintosh/.test(navigator.userAgent)&&navigator.maxTouchPoints>1);
+let outEl=null, routed=false;
+function ensureCtx(){
+ if(ctx)return;
+ // 音の種類を「再生（音楽）」にする（iOS 16.4 以降）。マナーモードでも鳴り、画面収録の対象になる
+ try{if(navigator.audioSession)navigator.audioSession.type='playback';}catch(e){}
+ ctx=new (window.AudioContext||window.webkitAudioContext)(); out=ctx.createGain(); out.gain.value=0.9;
+ if((isIOS||window.__forceElementOut)&&ctx.createMediaStreamDestination){
+  try{const dest=ctx.createMediaStreamDestination(); out.connect(dest);
+   outEl=document.createElement('audio'); outEl.setAttribute('playsinline',''); outEl.srcObject=dest.stream; outEl.hidden=true; document.body.appendChild(outEl); routed=true;}
+  catch(e){routed=false; out.connect(ctx.destination);}
+ }else out.connect(ctx.destination);
+}
+// 音声プレーヤーで鳴らせなかったときは、これまで通り直接スピーカーへ
+function startOutput(){
+ if(!routed||!outEl||!outEl.paused)return;
+ const pr=outEl.play(); if(pr&&pr.catch)pr.catch(()=>{routed=false; try{out.connect(ctx.destination);}catch(e){}});
+}
 let outro=null; // 曲の終わり後、色のついた紙が左へ流れ切るまでの演出
 const outroLen=()=>(PHX+14)/cps;
 let cycOff=0, nextSrc=null, nextStartCtx=0; // ループで何周したか（紙の上の位置をずらし続けるため）
@@ -647,7 +666,7 @@ loopEl.addEventListener('change',()=>{if(useMedia){nextEl.dataset.warm='';warmNe
 function play(){
  if(!buffer||busy)return; outro=null;
  if(pos>=buffer.duration-0.05){pos=0;seek(0);}
- ensureCtx(); if(ctx.state==='suspended')ctx.resume();
+ ensureCtx(); if(ctx.state==='suspended')ctx.resume(); startOutput();
  srcNode=ctx.createBufferSource(); srcNode.buffer=buffer; srcNode.connect(out);
  startCtx=ctx.currentTime; startPos=pos; srcNode.start(0,pos); playing=true;
  cta.hidden=true; playBtn.textContent='Pause';
