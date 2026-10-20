@@ -63,6 +63,7 @@ function log(s){logLines.push(s);$('log').textContent=logLines.join('\n');}
 function setStatus(s){statusEl.textContent=s;}
 function setProg(r){progEl.style.width=(Math.max(0,Math.min(1,r))*100).toFixed(1)+'%';}
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+const withTimeout=(p,ms,msg)=>Promise.race([p,new Promise((_,rej)=>setTimeout(()=>rej(new Error(msg)),ms))]);
 const f1=x=>x.toFixed(1), f2=x=>x.toFixed(2);
 const RUN_SEC=8;            // 1回の再生で測る長さ
 const TARGET_LONG=1280;     // 作り直す動画の長い辺（720p）
@@ -77,8 +78,11 @@ async function playTest(url,label,mode){
  stage.innerHTML='';
  const v=document.createElement('video'); v.muted=true; v.playsInline=true; v.setAttribute('playsinline',''); v.preload='auto'; v.src=url;
  stage.appendChild(v);
- await new Promise((res,rej)=>{v.addEventListener('loadeddata',res,{once:true}); v.addEventListener('error',()=>rej(new Error('この動画は再生できませんでした')),{once:true});});
+ // iPhoneのSafariは再生を始めるまで映像の中身を読み込まないので、SIGHONと同じく「基本情報だけ読んだ状態」からPlayする
+ setStatus(`${label}：準備中…`);
+ if(v.readyState<1)await withTimeout(new Promise((res,rej)=>{v.addEventListener('loadedmetadata',res,{once:true}); v.addEventListener('error',()=>rej(new Error('この動画は再生できませんでした')),{once:true});}),15000,`${label}：動画の情報が読めませんでした`);
  await sleep(1000); // SIGHONでも読み込みからPlayまで少し間がある
+ log(`[${label}] readyState before play=${v.readyState}`);
  const dur=Math.min(RUN_SEC,(v.duration||RUN_SEC)-0.2);
  const q0=v.getVideoPlaybackQuality?v.getVideoPlaybackQuality():null;
  const frames=[]; let seeks=[], t0=0, firstFrame=null, done=false, lastSeek=-1e9;
@@ -139,6 +143,8 @@ async function pickEncoder(w,h,fps){
 }
 async function convert(file){
  if(!('VideoDecoder' in window)||!('VideoEncoder' in window))throw new Error('このブラウザは動画の作り直し（WebCodecs）に対応していません');
+ setStatus('720pに作り直す準備中…');
+ if(typeof MP4Box==='undefined'||typeof Mp4Muxer==='undefined')throw new Error('動画を読む部品を読み込めませんでした（通信を確認してください）');
  const t0=performance.now();
  const mp4=MP4Box.createFile();
  let track=null, readyRes; const ready=new Promise(r=>readyRes=r);
@@ -183,7 +189,9 @@ async function convert(file){
  const pump=async()=>{
   while(queue.length){
    if(decErr||encErr)throw (decErr||encErr);
-   while(decoder.decodeQueueSize>6||encoder.encodeQueueSize>6){await sleep(1); if(decErr||encErr)throw (decErr||encErr);}
+   const w0=performance.now();
+   while(decoder.decodeQueueSize>6||encoder.encodeQueueSize>6){await sleep(1); if(decErr||encErr)throw (decErr||encErr);
+    if(performance.now()-w0>20000)throw new Error(`作り直しが進まなくなりました（読み込み${nIn}・展開${nOut}・書き出し${nEnc}コマ／全${total}コマ）`);}
    const s=queue.shift();
    decoder.decode(new EncodedVideoChunk({type:s.is_sync?'key':'delta',timestamp:Math.round(1e6*s.cts/s.timescale),duration:Math.round(1e6*s.duration/s.timescale),data:s.data}));
    nIn++; lastRelease=s.number;
@@ -191,7 +199,7 @@ async function convert(file){
   }
  };
  while(true){await pump(); if(nIn>=total)break; if(!(await feed())){mp4.flush(); await pump(); break;}}
- await decoder.flush(); await encoder.flush(); decoder.close(); encoder.close();
+ setStatus('720pに作り直し中…仕上げ'); await withTimeout(decoder.flush(),30000,`展開の仕上げで止まりました（展開${nOut}コマ）`); await withTimeout(encoder.flush(),30000,`書き出しの仕上げで止まりました（書き出し${nEnc}コマ）`); decoder.close(); encoder.close();
  if(decErr||encErr)throw (decErr||encErr);
  muxer.finalize();
  const buf=muxer.target.buffer; const sec=(performance.now()-t0)/1000;
@@ -212,7 +220,8 @@ $('file').addEventListener('change',async e=>{
  const ua=navigator.userAgent; log(ua);
  const url=URL.createObjectURL(file);
  try{
-  info0=await probe(url);
+  setStatus('動画の情報を読んでいます…');
+  info0=await withTimeout(probe(url),15000,'動画の情報が読めませんでした');
   infoEl.innerHTML=`<p><b>${file.name}</b><br>${info0.w}×${info0.h}・${f1(info0.dur)}秒・${f1(file.size/1048576)}MB</p>`;
   log(`file ${file.name} ${info0.w}x${info0.h} ${f2(info0.dur)}s ${f1(file.size/1048576)}MB`);
   await playTest(url,'元の動画（SIGHON方式）','sighon');
