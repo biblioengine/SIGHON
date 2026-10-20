@@ -601,10 +601,19 @@ function encodeWav(buf){
  return new Blob([ab],{type:'audio/wav'});
 }
 // 音声プレーヤーの時刻は飛び飛びに進むので、その間は経過時間で補う
+// 時計は端末のタイマーでなめらかに進め、音声プレーヤーの位置は「ずれの補正」にだけ使う。
+// iPhone の音声プレーヤーは位置を数十〜数百ミリ秒おきにしか更新しないので、そのまま使うと紙がカクつく。
+let sBase=0, sPerf=0, sLastCt=-1, sLive=false;
 function elemTime(){
- const ct=aEl.currentTime, now=performance.now();
- if(ct!==aT||aEl.paused||aEl.seeking){aT=ct;aPerf=now;return ct;}
- return aT+Math.min(0.15,(now-aPerf)/1000);
+ const now=performance.now(), ct=aEl.currentTime;
+ if(aEl.paused||aEl.seeking||!sLive){sBase=ct;sPerf=now;sLastCt=ct;sLive=!aEl.paused&&!aEl.seeking;return ct;}
+ let est=sBase+(now-sPerf)/1000;
+ if(ct!==sLastCt){
+  sLastCt=ct; const err=ct-est;
+  if(Math.abs(err)>0.35){sBase=ct;sPerf=now;est=ct;}      // 大きくずれた（頭に戻った・詰まった）ときだけ合わせ直す
+  else{sBase+=err*0.2; est+=err*0.2;}                       // 小さなずれは少しずつ詰める
+ }
+ return est;
 }
 let outro=null; // 曲の終わり後、色のついた紙が左へ流れ切るまでの演出
 const outroLen=()=>(PHX+14)/cps;
@@ -620,7 +629,7 @@ function stopSource(){if(elemMode)aEl.pause(); for(const n of [srcNode,nextSrc])
 const vidbox=document.getElementById('vidbox'), deck=document.getElementById('deck');
 const vidToggle=document.getElementById('vidToggle'), vidToggleWrap=document.getElementById('vidToggleWrap'), loopEl=document.getElementById('loopEl');
 let players=[document.getElementById('vidA'),document.getElementById('vidB')], curEl=players[0], nextEl=players[1];
-let clips=[], ci=0, hasVideo=false, useMedia=false, lastHardSeek=0;
+let clips=[], ci=0, hasVideo=false, useMedia=false, lastHardSeek=0, lastRateSet=0;
 const isVideoFile=f=>/^video\//.test(f.type)||/\.(mov|mp4|m4v)$/i.test(f.name);
 function clearPlayers(){for(const el of players){el.pause();el.removeAttribute('src');el.load();el.dataset.clip='';el.playbackRate=1;}}
 function setClips(list){
@@ -653,18 +662,16 @@ function videoFollow(t,force){
   const prev=curEl;
   if(nextEl.dataset.clip===String(i)){[curEl,nextEl]=[nextEl,curEl];} else loadInto(curEl,i);
   ci=i; if(prev!==curEl){prev.pause();} nextEl.dataset.warm='';
-  for(const el of players)el.hidden=(el!==curEl);
+  for(const el of players){el.hidden=(el!==curEl); el.playbackRate=1;}
   force=true;
  }
- for(const el of players)el.hidden=(el!==curEl);
+ // 映像の再生速度は常に1.0倍のまま（iPhone は速度を少しでも変えるとコマが乱れてカクつく）。
+ // 大きくずれたときだけ位置を合わせ直し、それも2秒に1回までにする。
  const now=performance.now(), drift=curEl.currentTime-local;
- if(!curEl.seeking&&(force||Math.abs(drift)>0.8)&&now-lastHardSeek>700){
-  if(Math.abs(drift)>(force?0.12:0.04)){try{curEl.currentTime=local;}catch(e){} lastHardSeek=now;}
-  curEl.playbackRate=1;
- }else if(!curEl.seeking){
-  const r=Math.abs(drift)<0.04?1:clamp(1-drift*0.6,0.85,1.15);
-  if(Math.abs(curEl.playbackRate-r)>0.01)curEl.playbackRate=r;
+ if(!curEl.seeking&&((force&&Math.abs(drift)>0.12)||(Math.abs(drift)>0.5&&now-lastHardSeek>2000))){
+  try{curEl.currentTime=local;}catch(e){} lastHardSeek=now;
  }
+ if(curEl.playbackRate!==1)curEl.playbackRate=1;
  if(playing&&curEl.paused&&!curEl.ended)curEl.play().catch(()=>{});
  if(!playing&&!curEl.paused)curEl.pause();
  if(playing)warmNext();
@@ -680,7 +687,7 @@ function play(){
  if(pos>=buffer.duration-0.05){pos=0;seek(0);}
  ensureCtx();
  if(elemMode){
-  try{aEl.currentTime=pos;}catch(e){} aT=pos; aPrev=pos; aPerf=performance.now(); aEl.loop=loopEl.checked;
+  try{aEl.currentTime=pos;}catch(e){} aT=pos; aPrev=pos; aPerf=performance.now(); sLive=false; aEl.loop=loopEl.checked;
   const pr=aEl.play(); if(pr&&pr.catch)pr.catch(()=>{}); playing=true;
  }else{
   if(ctx.state==='suspended')ctx.resume();
