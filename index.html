@@ -246,6 +246,29 @@ const BANDS=[
  {name:'High',hz:'4–12 kHz',lo:4000,hi:12000,color:[1.000,0.525,0.282],r:[1.4,2.4],water:0.55,pig:0.6,stroke:true},
 ];
 BANDS.forEach(s=>{s.base=s.color.slice();s.abs=s.color.map(c=>-Math.log(Math.max(0.03,c)));});
+// ---------- 音を拾って描くための音域（SUBS） ----------
+// 色の設定は5つの音域（BANDS）のまま。音を拾う・描く単位は SUBS で、New では12本に細かく分ける。
+// 各 SUBS の色や筆の大きさは、5つの音域の中心のあいだを周波数（対数）でなめらかにつないで決める。
+// MODE を 'current' にすると、SUBS＝以前の5本そのもの（2026-10-21までの動き）に戻せる。
+let MODE='new', SUBS=[];
+const SPLIT=[2,2,3,3,2]; const OLD_THR=[0.004,0.0015,0.0006,0.00015,0.00003];
+const bandCenter=B=>Math.log2(Math.sqrt(B.lo*B.hi));
+function gposOf(f){const lc=Math.log2(f), cs=BANDS.map(bandCenter);
+ if(lc<=cs[0])return 0; if(lc>=cs[cs.length-1])return cs.length-1;
+ for(let k=0;k<cs.length-1;k++)if(lc<cs[k+1])return k+(lc-cs[k])/(cs[k+1]-cs[k]); return cs.length-1;}
+function lerpAt(gp,get){const k=Math.min(BANDS.length-2,Math.floor(gp)), f=gp-k, a=get(BANDS[k]), b=get(BANDS[k+1]);
+ return Array.isArray(a)?a.map((x,i)=>x*(1-f)+b[i]*f):a*(1-f)+b*f;}
+function buildSubs(){
+ if(MODE==='current'){SUBS=BANDS.map((B,i)=>({lo:B.lo,hi:B.hi,g:i,gpos:i,r:B.r,water:B.water,pig:B.pig,splat:!!B.splat,thr:OLD_THR[i]}));}
+ else{SUBS=[];
+  // 5つの音域それぞれを、対数で等しく分ける（低音は分けすぎると低音ばかり拾うので、分け方を音域ごとに決める）
+  BANDS.forEach((B,g)=>{const n=SPLIT[g], L0=Math.log2(B.lo), L1=Math.log2(B.hi);
+   for(let i=0;i<n;i++){const lo=2**(L0+(L1-L0)*i/n), hi=2**(L0+(L1-L0)*(i+1)/n), gp=gposOf(Math.sqrt(lo*hi));
+    SUBS.push({lo,hi,g,gpos:gp,r:lerpAt(gp,B=>B.r),water:lerpAt(gp,B=>B.water),pig:lerpAt(gp,B=>B.pig),splat:g===0});}});}
+ updateSubColors();
+}
+function updateSubColors(){for(const s of SUBS){s.abs=lerpAt(s.gpos,B=>B.abs); s.color=s.abs.map(a=>Math.exp(-a));}}
+buildSubs(); let anCache={};
 const lg=document.getElementById('legend');
 const hex2=v=>Math.round(Math.min(1,Math.max(0,v))*255).toString(16).padStart(2,'0');
 function renderLegend(){lg.innerHTML='';BANDS.forEach((s,i)=>{const li=document.createElement('li');const c=s.abs.map((a,k)=>Math.round(PAPER[k]*Math.exp(-0.9*a)));
@@ -476,45 +499,51 @@ async function analyze(buf,onProg){
  const NF=2048, HOP=512, frames=Math.max(1,Math.floor((len-NF)/HOP)+1);
  const fft=makeFFT(NF), win=new Float64Array(NF); for(let i=0;i<NF;i++)win[i]=0.5-0.5*Math.cos(2*Math.PI*i/(NF-1));
  const re=new Float64Array(NF), im=new Float64Array(NF), prev=new Float32Array(NF/2);
- const bins=BANDS.map(b=>[Math.max(1,Math.round(b.lo*NF/sr)),Math.min(NF/2-1,Math.round(b.hi*NF/sr))]);
- const flux=BANDS.map(()=>new Float32Array(frames)), energy=BANDS.map(()=>new Float32Array(frames)), peak=BANDS.map(()=>new Uint16Array(frames)), total=new Float32Array(frames), cent=new Float32Array(frames);
+ const bins=SUBS.map(b=>[Math.max(1,Math.round(b.lo*NF/sr)),Math.min(NF/2-1,Math.max(Math.round(b.lo*NF/sr)+1,Math.round(b.hi*NF/sr)))]);
+ const flux=SUBS.map(()=>new Float32Array(frames)), energy=SUBS.map(()=>new Float32Array(frames)), peak=SUBS.map(()=>new Uint16Array(frames)), total=new Float32Array(frames), cent=new Float32Array(frames);
  for(let f=0;f<frames;f++){
   const o=f*HOP; for(let i=0;i<NF;i++){re[i]=(mono[o+i]||0)*win[i];im[i]=0;}
   fft(re,im);
   let cw=0,cm=0;
-  for(let b=0;b<BANDS.length;b++){const [lo,hi]=bins[b]; let fl=0,en=0,mx=0,mb=lo;
+  for(let b=0;b<SUBS.length;b++){const [lo,hi]=bins[b]; let fl=0,en=0,mx=0,mb=lo;
    for(let k=lo;k<=hi;k++){const m=Math.sqrt(re[k]*re[k]+im[k]*im[k]); const lm=Math.log(1+100*m); const df=lm-prev[k]; if(df>0)fl+=df; prev[k]=lm; en+=m*m; if(m>mx){mx=m;mb=k;} cw+=m*k; cm+=m;}
    flux[b][f]=fl/(hi-lo+1); energy[b][f]=en; peak[b][f]=mb; total[f]+=en;}
   cent[f]=cm>1e-9?Math.log2(Math.max(1,cw/cm*sr/NF)):0;
   if(f%400===0){onProg(f/frames);await new Promise(r=>setTimeout(r,0));}
  }
- return {sr,NF,HOP,frames,flux,energy,peak,total,cent,duration:buf.duration};
+ return {sr,NF,HOP,frames,flux,energy,peak,total,cent,duration:buf.duration,mode:MODE};
 }
 function pick(an,s){
- const k=2.6-1.4*s, fps=an.sr/an.HOP, Wn=10, out=[];
- for(let b=0;b<BANDS.length;b++){
+ const k=(2.6-1.4*s)*(MODE==='new'?NEW_K:1), fps=an.sr/an.HOP, Wn=10, out=[];
+ for(let b=0;b<SUBS.length;b++){
   const fl=an.flux[b], en=an.energy[b], F=an.frames;
   const ps=new Float64Array(F+1); for(let i=0;i<F;i++)ps[i+1]=ps[i]+fl[i];
   const bm=ps[F]/Math.max(1,F);
   const srt=Array.from(fl).sort((a,c)=>a-c); const p98=Math.max(1e-6,srt[Math.floor(srt.length*0.98)]||1e-6);
   const se=Array.from(en).sort((a,c)=>a-c); const e95=se[Math.floor(se.length*0.95)]||0;
-  const gap=Math.round((b===0?0.08:0.06)*fps); let last=-1e9;
+  const gap=Math.round((MODE==='new'?NEW_GAP:(SUBS[b].g===0?0.08:0.06))*fps); let last=-1e9;
   for(let i=1;i<F-1;i++){
    const a=Math.max(0,i-Wn), z=Math.min(F-1,i+Wn), lm=(ps[z+1]-ps[a])/(z-a+1);
    if(fl[i]>k*lm+0.15*bm&&fl[i]>=fl[i-1]&&fl[i]>fl[i+1]&&i-last>=gap){
     const i1=Math.min(F-1,i+1), i2=Math.min(F-1,i+2); const e0=Math.max(en[i],en[i1],en[i2]); const tt=Math.max(an.total[i],an.total[i1],an.total[i2])+1e-12;
-    // 高い音域ほど元々の音量が小さいので、全体との比較の基準を音域ごとに下げる
-    if(e0<0.03*e95||e0/tt<[0.004,0.0015,0.0006,0.00015,0.00003][b])continue;
+    if(MODE==='current'){
+     // 今の版：高い音域ほど元々の音量が小さいので、全体との比較の基準を音域ごとに下げる
+     if(e0<0.03*e95||e0/tt<SUBS[b].thr)continue;
+    }else{
+     // New：曲全体の音量とは比べず、その音域の「普段の大きさ」と比べる（高い音も、その音域で目立てば拾う）
+     if(e0<NEW_FLOOR*e95||e0/tt<NEW_ABS)continue;
+    }
     last=i;
     let j=i+1; const mj=Math.min(F-1,i+Math.round(4*fps)); while(j<mj&&en[j]>0.12*e0)j++;
     const f=peakOf(an,b,i);
-    out.push({band:b,fi:i,e0,t:i*an.HOP/an.sr,dur:Math.max(0.05,(j-i)/fps),freq:f,vel:clamp(Math.sqrt(fl[i]/p98),0.15,1)});
+    out.push({band:b,group:SUBS[b].g,fi:i,e0,t:i*an.HOP/an.sr,dur:Math.max(0.05,(j-i)/fps),freq:f,vel:clamp(Math.sqrt(fl[i]/p98),0.15,1)});
    }
   }
  }
  out.sort((a,c)=>a.t-c.t); return out;
 }
-function peakOf(an,b,i){const bin=Math.max(an.peak[b][i],an.peak[b][Math.min(an.frames-1,i+1)]);return clamp(bin*an.sr/an.NF,BANDS[b].lo,BANDS[b].hi);}
+function peakOf(an,b,i){const bin=Math.max(an.peak[b][i],an.peak[b][Math.min(an.frames-1,i+1)]);return clamp(bin*an.sr/an.NF,SUBS[b].lo,SUBS[b].hi);}
+let NEW_FLOOR=0.1, NEW_ABS=2e-6, NEW_K=1.4, NEW_GAP=0.15; // New の拾い方（Ballerinoで、今の版より少し多い密度になるよう調整）
 
 
 // ---------- 変化を加える変数（曲全体から時間ごとの値を作る） ----------
@@ -523,7 +552,7 @@ function smooth(a,win){const n=a.length,ps=new Float64Array(n+1),o=new Float32Ar
 function pct(a,p){const s=Array.from(a).sort((x,y)=>x-y);return s[Math.min(s.length-1,Math.floor(s.length*p))]||0;}
 function norm(a,lo,hi){const o=new Float32Array(a.length),d=Math.max(1e-9,hi-lo);for(let i=0;i<a.length;i++)o[i]=clamp((a[i]-lo)/d,0,1);return o;}
 function features(an){
- const F=an.frames, fps=an.sr/an.HOP, B=BANDS.length;
+ const F=an.frames, fps=an.sr/an.HOP, B=SUBS.length;
  // 和音の厚み：同時に鳴っている音域の数
  const e95=an.energy.map(e=>pct(e,0.95)), cnt=new Float32Array(F);
  for(let i=0;i<F;i++){let c=0;for(let b=0;b<B;b++)if(an.energy[b][i]>0.12*e95[b])c++;cnt[i]=Math.max(0,c-1)/(B-1);}
@@ -569,6 +598,7 @@ function applyColors(keepLegend){
  BANDS.forEach((b,i)=>{let [h,s,l]=rgb2hsl(b.base);const a=adj.bands[i],g=adj.all;
   h=((h+a.h+g.h)%360+360)%360; s=clamp(s*(a.s/100)*(g.s/100),0,1); l=clamp(l+(a.l+g.l)/100,0.04,0.96);
   b.color=hsl2rgb(h,s,l); b.abs=b.color.map(c=>-Math.log(Math.max(0.03,c)));});
+ updateSubColors();
  if(keepLegend){lg.querySelectorAll('.blot').forEach((el,i)=>{const c=BANDS[i].abs.map((a,k)=>Math.round(PAPER[k]*Math.exp(-0.9*a)));el.style.background=`rgb(${c})`;});}
  else renderLegend();
  buildOverview(); drawOverview();
@@ -722,7 +752,7 @@ function seek(t){
 async function loadBuffer(buf,name){
  busy=true; if(playing)pause(); buffer=buf; title=name; playBtn.disabled=true; busyEl.hidden=false;
  metaEl.textContent=`Analysing ${name}`;
- an=await analyze(buf,p=>{busyEl.textContent=`Analysing ${Math.round(p*100)}%`;});
+ anCache={}; an=await analyze(buf,p=>{busyEl.textContent=`Analysing ${Math.round(p*100)}%`;}); anCache[MODE]=an;
  notes=pick(an,+sensEl.value); feat=features(an);
  busy=false; busyEl.hidden=true; playBtn.disabled=false; cta.hidden=false;
  updateMeta(); buildOverview(); seek(0); syncExportBtn();
@@ -912,11 +942,11 @@ async function loadFiles(files){
 const WARM=35, COOL=215;
 function hueToward(h,target,a){let d=((target-h+540)%360)-180;return (h+d*a+360)%360;}
 function effAbs(b,t){
- let abs=BANDS[b].abs.slice();
+ let abs=SUBS[b].abs.slice(); const gb=SUBS[b].g;
  if(!feat)return abs;
  // 和音の厚み：彩度と明度は保ったまま、色相だけを隣の音域の色へずらす
  if(varOn.thick){const th=featAt(feat.thick,t)*varAmt.thick;
-  if(th>0.01){const nb=[b-1,b+1].filter(k=>k>=0&&k<BANDS.length); let vx=0,vy=0;
+  if(th>0.01){const nb=[gb-1,gb+1].filter(k=>k>=0&&k<BANDS.length); let vx=0,vy=0;
    for(const k of nb){const hk=rgb2hsl(BANDS[k].color)[0]*Math.PI/180; vx+=Math.cos(hk); vy+=Math.sin(hk);}
    const target=(Math.atan2(vy,vx)*180/Math.PI+360)%360;
    let [h,s,l]=rgb2hsl(abs.map(x=>Math.exp(-x))); h=hueToward(h,target,0.65*th);
@@ -927,7 +957,7 @@ function effAbs(b,t){
  return abs;
 }
 function paintNote(n){
- const s=BANDS[n.band], cx=gxT(n.t+cycOff), cy=gyF(n.freq);
+ const s=SUBS[n.band], cx=gxT(n.t+cycOff), cy=gyF(n.freq);
  const r=(s.r[0]+(s.r[1]-s.r[0])*n.vel)*(0.85+0.3*Math.random());
  const ab=effAbs(n.band,n.t);
  deposit(cx,cy,r,s.water*(0.7+0.5*n.vel),s.pig*(0.6+0.6*n.vel),ab,5);
@@ -939,7 +969,7 @@ function paintNote(n){
 }
 function strokeNote(n,t){
  // 音の伸び：解析した音量の減衰に合わせて、筆を引くように滲みを伸ばす
- const s=BANDS[n.band], fi=clamp(Math.floor(t*an.sr/an.HOP),0,an.frames-1);
+ const s=SUBS[n.band], fi=clamp(Math.floor(t*an.sr/an.HOP),0,an.frames-1);
  const env=Math.sqrt(clamp(an.energy[n.band][fi]/Math.max(1e-12,n.e0),0,1));
  if(env<0.08)return;
  const base=(s.r[0]+(s.r[1]-s.r[0])*n.vel);
@@ -965,10 +995,10 @@ function drawLayers(t){
   g.lineCap='round'; g.lineWidth=1*dpr;
   const D=buffer?buffer.duration:0;
   const drawRange=(off,from,to)=>{for(let i=lowerBound(from-off-2);i<notes.length&&notes[i].t+off<to;i++){const n=notes[i], nt=n.t+off; const x=X(nt), y=sy(n.freq);
-   if(n.band===0?nt<=t:nt+n.dur<=t)continue;
+   if(n.group===0?nt<=t:nt+n.dur<=t)continue;
    const xs=Math.max(x,X(t));
    g.strokeStyle=`rgba(40,40,50,${0.18+0.22*n.vel})`; g.beginPath();
-   if(n.band===0){g.moveTo(x,y-3*dpr);g.lineTo(x,y+3*dpr);} else {g.moveTo(xs,y);g.lineTo(Math.max(xs+1.5*dpr,X(nt+n.dur)),y);}
+   if(n.group===0){g.moveTo(x,y-3*dpr);g.lineTo(x,y+3*dpr);} else {g.moveTo(xs,y);g.lineTo(Math.max(xs+1.5*dpr,X(nt+n.dur)),y);}
    g.stroke();}};
   drawRange(0,t0,Math.min(t1,D+0.01));
   if(loopEl.checked&&D>0&&t1>D)drawRange(D,D,t1);   // ループ時は、次の周の頭も右から見えてくる
@@ -980,7 +1010,7 @@ function drawLayers(t){
 function buildOverview(){
  const w=ovv.width,h=ovv.height; ovBase=document.createElement('canvas'); ovBase.width=w||1; ovBase.height=h||1; const g=ovBase.getContext('2d');
  if(!buffer)return; const D=buffer.duration, rowH=(h-6*dpr)/BANDS.length;
- for(const n of notes){const s=BANDS[n.band]; const row=BANDS.length-1-n.band;
+ for(const n of notes){const s=SUBS[n.band]; const row=BANDS.length-1-n.group;
   g.fillStyle=`rgba(${s.color.map(c=>Math.round(c*255)).join(',')},${0.25+0.6*n.vel})`;
   g.fillRect(n.t/D*w,3*dpr+row*rowH+rowH*0.15,Math.max(1,n.dur/D*w),rowH*0.7);}
  if(useMedia&&clips.length>1){g.fillStyle='rgba(120,110,130,0.55)';for(let i=1;i<clips.length;i++)g.fillRect(Math.round(clips[i].start/D*w),0,Math.max(1,dpr),h);}
@@ -1179,9 +1209,9 @@ function drawPaperOverlay(g,px,py,pw,ph,t,scale){
  if(pencilEl.checked&&notes.length){
   const t0=t-PHX/cps, t1=t+(VIS-PHX)/cps, D=buffer.duration; g.lineCap='round'; g.lineWidth=1.2*scale;
   for(let i=lowerBound(t0-2);i<notes.length&&notes[i].t<Math.min(t1,D+0.01);i++){const n=notes[i], x=X(n.t), y=sy(n.freq);
-   if(n.band===0?n.t<=t:n.t+n.dur<=t)continue; const xs=Math.max(x,X(t));
+   if(n.group===0?n.t<=t:n.t+n.dur<=t)continue; const xs=Math.max(x,X(t));
    g.strokeStyle=`rgba(40,40,50,${0.18+0.22*n.vel})`; g.beginPath();
-   if(n.band===0){g.moveTo(x,y-3*scale);g.lineTo(x,y+3*scale);} else {g.moveTo(xs,y);g.lineTo(Math.max(xs+1.5*scale,X(n.t+n.dur)),y);}
+   if(n.group===0){g.moveTo(x,y-3*scale);g.lineTo(x,y+3*scale);} else {g.moveTo(xs,y);g.lineTo(Math.max(xs+1.5*scale,X(n.t+n.dur)),y);}
    g.stroke();}
  }
  g.fillStyle='rgba(204,34,132,0.88)'; g.fillRect(px+PHX*cell-1.5*scale,py,3*scale,ph);
