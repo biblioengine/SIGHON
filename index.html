@@ -29,14 +29,16 @@ body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset
   padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
   display:flex;flex-direction:column;gap:22px}
 
-header{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-end;gap:8px 24px}
+/* タイトルは画面上部に固定し、その下に映像と紙を固定する（その下の操作類だけがスクロールする） */
+header{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-end;gap:8px 24px;
+  position:sticky;top:env(safe-area-inset-top,0px);z-index:6;background:var(--bg);padding-block:10px 12px;margin-block:-10px -12px}
 h1{font-family:var(--display);font-weight:400;font-size:clamp(40px,6.4vw,68px);line-height:.92;letter-spacing:.06em;margin:0}
 h1 em{font-style:italic}
 .sub{display:block;font-family:var(--body);font-size:12px;letter-spacing:.02em;color:var(--muted);margin-top:10px;line-height:1.4}
 .hright{display:flex;flex-direction:column;align-items:flex-end;gap:10px;min-width:0}
 .themebtn{display:inline-flex;align-items:center;gap:7px;font:500 11px/1 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--fg);background:transparent;border:1px solid var(--faint);border-radius:999px;padding:6px 11px 6px 8px;cursor:pointer}
 .themebtn:hover{border-color:var(--fg)}
-@media (max-width:600px){header{position:relative}.themebtn{position:absolute;top:6px;right:0}.hright{align-items:flex-start}header .meta{text-align:left}}
+@media (max-width:600px){.themebtn{position:absolute;top:16px;right:0}.hright{align-items:flex-start}header .meta{text-align:left}}
 .meta{font-family:var(--mono);font-size:11px;color:var(--muted);text-align:right;min-width:0;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
 .meta b{color:var(--fg);font-weight:500}
 
@@ -57,7 +59,7 @@ h1 em{font-style:italic}
   .deck.vid-on .panel{grid-area:panel;gap:14px;align-self:center}
   .deck.vid-on .stage{grid-area:stage;width:min(100%,calc(50vh * 16 / 9))}
   .wrap:has(.deck.vid-on){padding-block:6px 40px;gap:10px}
-  .wrap:has(.deck.vid-on) header{flex-wrap:nowrap;align-items:baseline}
+  .wrap:has(.deck.vid-on) header{flex-wrap:nowrap;align-items:baseline;position:static;padding:0;margin:0}
   .wrap:has(.deck.vid-on) h1{font-size:28px}
   .wrap:has(.deck.vid-on) .sub{display:inline;margin:0 0 0 12px}
   .wrap:has(.deck.vid-on) .meta br{display:none}
@@ -65,7 +67,7 @@ h1 em{font-style:italic}
   .wrap:has(.deck.vid-on) .themebtn{padding:4px 9px 4px 6px}
   .deck.vid-on .tc{font-size:18px}
 }
-.stickybox{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);padding-block:10px;margin-block:-10px}
+.stickybox{position:sticky;top:calc(env(safe-area-inset-top,0px) + var(--hh,0px));z-index:5;background:var(--bg);padding-block:10px;margin-block:-10px}
 .stage{position:relative;width:min(100%,calc(58vh * 16 / 9));margin-inline:auto;aspect-ratio:16/9;max-width:100%;background:#f4f2ec;isolation:isolate;overflow:hidden}
 .stage.drag{outline:2px solid var(--accent);outline-offset:-2px}
 .stage canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
@@ -143,10 +145,10 @@ body{margin:0}
 
 <div class="wrap">
   <header>
-    <h1>SIGHON<span class="sub">彩音 · an audio score, painted in watercolour</span></h1>
+    <h1>SIGHON</h1>
     <div class="hright">
       <button class="themebtn" id="themeBtn" type="button" aria-label="Switch to dark mode"><svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true"><circle cx="10" cy="10" r="7.5" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M10 2.5a7.5 7.5 0 0 1 0 15z" fill="currentColor"/></svg><span id="themeLabel">Dark</span></button>
-      <div class="meta" id="meta">Loading Ballerino</div>
+      <div class="meta" id="meta" hidden></div>
     </div>
   </header>
 
@@ -167,6 +169,7 @@ body{margin:0}
     <button class="btn play" id="play" disabled>Play</button>
     <label class="filebtn" for="file">Load audio<input type="file" id="file" accept="audio/*,video/*,.mp3,.wav,.m4a,.aac,.ogg,.flac,.mov,.mp4,.m4v" multiple></label>
     <button class="btn" id="demo">Ballerino</button>
+    <button class="btn" id="exportBtn" type="button" hidden>Export</button>
     <label class="check" id="vidToggleWrap" for="vidToggle" hidden><input type="checkbox" id="vidToggle" checked>Video</label>
     <label class="check" for="loopEl"><input type="checkbox" id="loopEl">Loop</label>
     <div class="tc" id="hPos">0:00 <span>/ 0:00</span></div>
@@ -628,6 +631,8 @@ function stopSource(){if(elemMode)aEl.pause(); for(const n of [srcNode,nextSrc])
 // 音は全クリップを1本につないで途切れずに鳴らし、それを全体の時計にする。
 // 映像は音を消して、その時計に後から付いていく（映像が一瞬遅れても、音と紙は止まらない）。
 const vidbox=document.getElementById('vidbox'), deck=document.getElementById('deck');
+// 固定したタイトルの高さを、その下に固定する映像と紙の位置に使う
+{const hd=document.querySelector('header'); const setHH=()=>document.documentElement.style.setProperty('--hh',hd.offsetHeight+'px'); setHH(); new ResizeObserver(setHH).observe(hd);}
 const vidToggle=document.getElementById('vidToggle'), vidToggleWrap=document.getElementById('vidToggleWrap'), loopEl=document.getElementById('loopEl');
 let players=[document.getElementById('vidA'),document.getElementById('vidB')], curEl=players[0], nextEl=players[1];
 let clips=[], ci=0, hasVideo=false, useMedia=false, lastHardSeek=0, lastRateSet=0;
@@ -686,7 +691,7 @@ loopEl.addEventListener('change',()=>{if(useMedia){nextEl.dataset.warm='';warmNe
 
 
 function play(){
- if(!buffer||busy)return; outro=null;
+ if(!buffer||busy)return; outro=null; if(exportResult){exportResult=null; syncExportBtn();}
  if(pos>=buffer.duration-0.05){pos=0;seek(0);}
  ensureCtx();
  if(elemMode){
@@ -720,7 +725,7 @@ async function loadBuffer(buf,name){
  an=await analyze(buf,p=>{busyEl.textContent=`Analysing ${Math.round(p*100)}%`;});
  notes=pick(an,+sensEl.value); feat=features(an);
  busy=false; busyEl.hidden=true; playBtn.disabled=false; cta.hidden=false;
- updateMeta(); buildOverview(); seek(0);
+ updateMeta(); buildOverview(); seek(0); syncExportBtn();
 }
 function updateMeta(){metaEl.innerHTML=`<b>${escapeHtml(title)}</b> <br>${fmt(buffer.duration)} · 5 bands`;}
 function escapeHtml(s){return s.replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
@@ -894,9 +899,9 @@ async function loadFiles(files){
   const len=parts.reduce((a,p)=>a+p.buf.length,0); buf=ctx.createBuffer(ch,len,rate); let o=0;
   for(const p of parts){for(let c=0;c<ch;c++)buf.getChannelData(c).set(p.buf.getChannelData(Math.min(c,p.buf.numberOfChannels-1)),o); o+=p.buf.length;}}
  let list=null;
- if(media){list=[]; let start=0; for(const p of parts){list.push({url:URL.createObjectURL(p.video),start,dur:p.buf.length/p.buf.sampleRate,isVideo:isVideoFile(p.file)}); start+=p.buf.length/p.buf.sampleRate;}}
+ if(media){list=[]; let start=0; for(const p of parts){list.push({url:URL.createObjectURL(p.video),blob:p.video,start,dur:p.buf.length/p.buf.sampleRate,isVideo:isVideoFile(p.file)}); start+=p.buf.length/p.buf.sampleRate;}}
  parts.length=0;
- busy=false; setClips(list); if(elemMode){busyEl.textContent='Preparing audio'; setOutputBlob(encodeWav(buf));} await loadBuffer(buf,name);
+ busy=false; userSource=true; exportResult=null; setClips(list); if(elemMode){busyEl.textContent='Preparing audio'; setOutputBlob(encodeWav(buf));} await loadBuffer(buf,name);
 }
 
 // ---------- painting ----------
@@ -994,6 +999,7 @@ new ResizeObserver(resize).observe(stage);
 // ---------- loop ----------
 let last=performance.now(), acc=0, fps=60, hudT=0, lastCtxT=-1, lastCtxSeen=0;
 function frame(ts){
+ if(exporting){last=ts; requestAnimationFrame(frame); return;} // 書き出し中は、紙の計算を書き出し側に任せる
  const dt=Math.min(0.1,Math.max(0.001,(ts-last)/1000)); last=ts; fps=fps*0.92+(1/dt)*0.08;
  let t=clock();
  if(playing&&buffer&&elemMode){
@@ -1069,9 +1075,10 @@ const DEFAULT_URL='audio/ballerino.ogg', DEFAULT_TITLE='Ballerino — Yehezkel R
 function unscramble(ab){const b=new Uint8Array(ab), R=mulberry32(0x5A1907E5); let w=0;
  for(let i=0;i<b.length;i++){if((i&3)===0)w=Math.floor(R()*4294967296)>>>0; b[i]^=(w>>>(8*(i&3)))&255;} return b.buffer;}
 async function loadDefault(){
+ userSource=false; exportResult=null; if(typeof syncExportBtn==='function')syncExportBtn();
  setClips(null); cycOff=0; busyEl.hidden=false; busyEl.textContent='Loading'; cta.innerHTML='Play<small>SOUND ON</small>';
  try{ensureCtx(); const r=await fetch(DEFAULT_URL); if(!r.ok)throw 0; const raw=unscramble(await r.arrayBuffer()); if(elemMode)setOutputBlob(new Blob([raw],{type:'audio/mpeg'})); const buf=await decode(raw); await loadBuffer(buf,DEFAULT_TITLE);}
- catch(e){ try{const b=await makeDemo(); if(elemMode)setOutputBlob(encodeWav(b)); await loadBuffer(b,'Sample');}catch(_){busyEl.hidden=true;metaEl.textContent='Load an audio file';} }
+ catch(e){ try{const b=await makeDemo(); if(elemMode)setOutputBlob(encodeWav(b)); await loadBuffer(b,'Sample');}catch(_){busyEl.hidden=false;busyEl.textContent='Load an audio file';} }
 }
 document.getElementById('demo').addEventListener('click',()=>{if(!busy)loadDefault();});
 sensEl.addEventListener('input',()=>{document.getElementById('sensOut').textContent=(+sensEl.value).toFixed(2);});
@@ -1101,6 +1108,235 @@ tgtEl.addEventListener('change',syncColorUI);
 for(const [el,key] of [[hEl,'h'],[sEl,'s'],[lEl,'l']])el.addEventListener('input',()=>{curAdj()[key]=+el.value;syncColorUI();applyColors();});
 document.getElementById('cReset').addEventListener('click',()=>{const a=curAdj();a.h=0;a.s=100;a.l=0;syncColorUI();applyColors();});
 syncColorUI();
+
+// ---------- 書き出し（映像と水彩を1本の動画にする） ----------
+// 再生とは別に、1コマずつ水彩を進めて動画を組み立てる（再生中のカクつきや継ぎ目の間が入らない）。
+// 画面の並びと同じく、上に映像・下に紙。左上にタイトル、右下に時間。1080×1920、30fps。
+// 初期曲（Ballerino）は書き出せない（Artlist のライセンスのため）。自分で読み込んだ音源・動画のときだけボタンを出す。
+const EX_W=1080, EX_H=1920, EX_FPS=30, EX_STEPS=4; // 120ステップ/秒 ÷ 30fps
+let exporting=false, exportCancel=false, exportResult=null, userSource=false;
+const exportBtn=document.getElementById('exportBtn');
+const canExport=()=>'VideoEncoder' in window&&'VideoFrame' in window;
+function syncExportBtn(){
+ if(exporting)return;
+ exportBtn.hidden=!(canExport()&&buffer&&userSource&&!busy);
+ exportBtn.textContent=exportResult?'Save video':'Export';
+ exportBtn.classList.toggle('play',!!exportResult);
+}
+// 映像の1コマを時刻で取り出す（WebCodecsで先頭から順に展開する）
+async function openFrames(blob){
+ const M=await loadMp4box(), wait=ms=>new Promise(r=>setTimeout(r,ms));
+ const mp4=M.createFile(); let track=null; const q=[]; let off=0, eof=false; const CH=8<<20;
+ mp4.onReady=inf=>{track=inf.videoTracks[0]||null; if(track){mp4.setExtractionOptions(track.id,null,{nbSamples:20}); mp4.start();}};
+ mp4.onSamples=(id,u,s)=>{for(const x of s)q.push(x);};
+ const feed=async()=>{if(off>=blob.size){if(!eof){eof=true;mp4.flush();}return false;}
+  const ab=await blob.slice(off,off+CH).arrayBuffer(); ab.fileStart=off; const n=mp4.appendBuffer(ab); off=(typeof n==='number'&&n>off)?n:off+ab.byteLength; return true;};
+ while(!track){if(!(await feed()))return null;}
+ let desc; const trak=mp4.getTrackById(track.id);
+ for(const e of trak.mdia.minf.stbl.stsd.entries){const box=e.avcC||e.hvcC||e.vpcC||e.av1C;
+  if(box){const ds=new DataStream(undefined,0,DataStream.BIG_ENDIAN); box.write(ds); desc=new Uint8Array(ds.buffer,8); break;}}
+ const dcfg={codec:track.codec,codedWidth:track.video.width,codedHeight:track.video.height,description:desc};
+ const sup=await VideoDecoder.isConfigSupported(dcfg); if(!sup||!sup.supported)throw new Error('This video cannot be read for export.');
+ const out=[]; let err=null, base=null, flushed=false, sent=0;
+ const dec=new VideoDecoder({output:f=>out.push(f),error:e=>{err=e;}}); dec.configure(dcfg);
+ const rot=trackRotation(track.matrix), w=track.video.width, h=track.video.height;
+ return {
+  rot, aspect:(rot%180)?h/w:w/h,
+  async frameAt(t){
+   const tu=t*1e6;
+   for(;;){
+    if(err)throw err;
+    if(base===null&&out.length)base=out[0].timestamp;
+    while(out.length>=2&&out[1].timestamp-base<=tu)out.shift().close();
+    if(out.length>=2||(flushed&&out.length))return out[0];
+    if(flushed)return null;
+    if(q.length){while(dec.decodeQueueSize>4){await wait(1); if(err)throw err;}
+     const x=q.shift(); dec.decode(new EncodedVideoChunk({type:x.is_sync?'key':'delta',timestamp:Math.round(1e6*x.cts/x.timescale),duration:Math.round(1e6*x.duration/x.timescale),data:x.data}));
+     if(++sent%20===0)mp4.releaseUsedSamples(track.id,x.number); continue;}
+    if(await feed())continue;
+    flushed=true; await dec.flush();
+   }
+  },
+  close(){for(const f of out)f.close(); out.length=0; try{if(dec.state!=='closed')dec.close();}catch(e){}}
+ };
+}
+function drawRotated(g,f,rot,x,y,w,h){
+ g.save(); g.translate(x+w/2,y+h/2); if(rot)g.rotate(rot*Math.PI/180);
+ const dw=(rot%180)?h:w, dh=(rot%180)?w:h; g.drawImage(f,-dw/2,-dh/2,dw,dh); g.restore();
+}
+// 紙の上の鉛筆線・粒子・再生ヘッドを、書き出し用の大きさで描く（画面の drawLayers と同じ内容）
+function drawPaperOverlay(g,px,py,pw,ph,t,scale){
+ const cell=pw/VIS, V=t, X=tt=>px+((tt-t)*cps+PHX)*cell, sy=f=>py+gyF(f)/GH*ph;
+ g.save(); g.beginPath(); g.rect(px,py,pw,ph); g.clip();
+ const off=((V*cps*cell/scale)%160+160)%160;
+ g.translate(px,py); g.scale(scale,scale); g.translate(-off,0); g.fillStyle=g.createPattern(grainPat,'repeat'); g.fillRect(0,0,pw/scale+160,ph/scale);
+ g.restore();
+ g.save(); g.beginPath(); g.rect(px,py,pw,ph); g.clip();
+ if(pencilEl.checked&&notes.length){
+  const t0=t-PHX/cps, t1=t+(VIS-PHX)/cps, D=buffer.duration; g.lineCap='round'; g.lineWidth=1.2*scale;
+  for(let i=lowerBound(t0-2);i<notes.length&&notes[i].t<Math.min(t1,D+0.01);i++){const n=notes[i], x=X(n.t), y=sy(n.freq);
+   if(n.band===0?n.t<=t:n.t+n.dur<=t)continue; const xs=Math.max(x,X(t));
+   g.strokeStyle=`rgba(40,40,50,${0.18+0.22*n.vel})`; g.beginPath();
+   if(n.band===0){g.moveTo(x,y-3*scale);g.lineTo(x,y+3*scale);} else {g.moveTo(xs,y);g.lineTo(Math.max(xs+1.5*scale,X(n.t+n.dur)),y);}
+   g.stroke();}
+ }
+ g.fillStyle='rgba(204,34,132,0.88)'; g.fillRect(px+PHX*cell-1.5*scale,py,3*scale,ph);
+ g.restore();
+}
+async function pickVideoEncoder(){
+ for(const [codec,mux] of [['avc1.640028','avc'],['avc1.4d0028','avc'],['avc1.42e028','avc'],['vp09.00.40.08','vp9']]){
+  const cfg={codec,width:EX_W,height:EX_H,bitrate:8e6,framerate:EX_FPS,latencyMode:'quality'}; if(mux==='avc')cfg.avc={format:'avc'};
+  try{const r=await VideoEncoder.isConfigSupported(cfg); if(r.supported)return {cfg,mux};}catch(e){}}
+ return null;
+}
+async function pickAudioEncoder(sr,ch){
+ if(!('AudioEncoder' in window)||!('AudioData' in window))return null;
+ for(const [codec,mux,br] of [['mp4a.40.2','aac',192000],['opus','opus',160000]]){
+  const cfg={codec,sampleRate:sr,numberOfChannels:ch,bitrate:br};
+  try{const r=await AudioEncoder.isConfigSupported(cfg); if(r.supported)return {cfg,mux};}catch(e){}}
+ return null;
+}
+function exportProgress(r,label){busyEl.hidden=false; busyEl.textContent=`${label} ${Math.round(r*100)}%`;}
+async function runExport(){
+ if(exporting||!buffer||!userSource)return;
+ // 工程ごとの時間（開発用。console に出す）
+ const P={audio:0,sim:0,video:0,draw:0,frame:0,wait:0,screen:0}, now=()=>performance.now(), T0=now(); let tA;
+ const wait=ms=>new Promise(r=>setTimeout(r,ms));
+ if(playing)pause(); exportResult=null;
+ exporting=true; exportCancel=false; busy=true; cta.hidden=true;
+ exportBtn.textContent='Cancel'; exportBtn.classList.remove('play');
+ for(const el of [playBtn,document.getElementById('demo'),document.getElementById('file')])el.disabled=true;
+ document.querySelector('label.filebtn').style.opacity='.4';
+ let venc=null, aenc=null, src=null;
+ try{
+  const X=await loadMuxer();
+  await Promise.all([document.fonts.load('400 120px "Instrument Serif"'),document.fonts.load('400 40px "Geist Mono"')]).catch(()=>{});
+  const D=buffer.duration, L=outroLen(), total=Math.ceil((D+L)*EX_FPS);
+  const ve=await pickVideoEncoder(); if(!ve)throw new Error('This browser cannot export video.');
+  const ch=Math.min(2,buffer.numberOfChannels), sr=buffer.sampleRate;
+  const ae=await pickAudioEncoder(sr,ch);
+  const muxer=new X.Muxer({target:new X.ArrayBufferTarget(),video:{codec:ve.mux,width:EX_W,height:EX_H,frameRate:EX_FPS},
+   audio:ae?{codec:ae.mux,numberOfChannels:ch,sampleRate:sr}:undefined,fastStart:'in-memory',firstTimestampBehavior:'offset'});
+  let err=null;
+  // 音：つないだ音声をそのまま書き出す
+  tA=now();
+  if(ae){
+   // Safari 26 の AAC は、付けてくる設定情報（AudioSpecificConfig）が壊れていて、そのままmp4にすると無音になる（WebKit bug 302253）。
+   // AAC のときは Safari の設定情報を使わず、書き出し側で正しい設定（AAC-LC・サンプルレート・チャンネル数）を作らせる。
+   aenc=new AudioEncoder({output:(c,m)=>muxer.addAudioChunk(c,ae.mux==='aac'?undefined:m),error:e=>{err=e;}}); aenc.configure(ae.cfg);
+   const CHK=4096, chs=[...Array(ch)].map((_,c)=>buffer.getChannelData(c));
+   for(let i=0;i<buffer.length;i+=CHK){
+    if(exportCancel)throw new Error('cancel'); if(err)throw err;
+    const n=Math.min(CHK,buffer.length-i), d=new Float32Array(n*ch); for(let c=0;c<ch;c++)d.set(chs[c].subarray(i,i+n),c*n);
+    const ad=new AudioData({format:'f32-planar',sampleRate:sr,numberOfFrames:n,numberOfChannels:ch,timestamp:Math.round(i/sr*1e6),data:d});
+    aenc.encode(ad); ad.close();
+    while(aenc.encodeQueueSize>8)await wait(1);
+    if((i/CHK)%40===0){exportProgress(i/buffer.length*0.05,'Exporting'); await wait(0);}
+   }
+   await aenc.flush(); aenc.close(); aenc=null;
+  }
+  P.audio=now()-tA;
+  venc=new VideoEncoder({output:(c,m)=>muxer.addVideoChunk(c,m),error:e=>{err=e;}}); venc.configure(ve.cfg);
+  // 画面構成：映像の枠の大きさは、全クリップで一番大きく要る高さにそろえる（紙が途中で動かないように）
+  // タイトルは映像のすぐ上、時刻は紙のすぐ下。そのまとまり全体を上下中央に置き、外側の余白を大きく取る
+  const M=84, cw=EX_W-2*M, pw=cw, ph=Math.round(pw*9/16), gap=36, OUT=150, TS=92, titleBand=TS*0.8+44, timeBand=72;
+  const vclips=clips.filter(c=>c.isVideo&&c.blob);
+  let aspects=[];
+  for(const c of vclips){ if(!c.aspect){try{const s=await openFrames(c.blob); if(s){c.aspect=s.aspect; c.rot=s.rot; s.close();}}catch(e){}} if(c.aspect)aspects.push(c.aspect); }
+  const maxVH=EX_H-2*OUT-titleBand-timeBand-ph-gap;
+  const boxH=aspects.length?Math.round(Math.max(...aspects.map(a=>Math.min(maxVH,cw/a)))):0;
+  const blockH=boxH?boxH+gap+ph:ph, blockY=Math.round((EX_H-(titleBand+blockH+timeBand))/2+titleBand);
+  const boxY=blockY, paperY=boxH?blockY+boxH+gap:blockY;
+  const css=getComputedStyle(document.documentElement), col=k=>css.getPropertyValue(k).trim();
+  const BG=col('--bg')||'#e8e8eb', FG=col('--fg')||'#17161b', MUTED=col('--muted')||'#76747e';
+  // 1コマは画面外キャンバスに描き、画像にして渡す（iPhoneのSafariで、普通のキャンバスから渡すより約10倍速い：2026-10-21のテスト）
+  const useOff=typeof OffscreenCanvas!=='undefined'&&'transferToImageBitmap' in OffscreenCanvas.prototype;
+  const cv=useOff?new OffscreenCanvas(EX_W,EX_H):Object.assign(document.createElement('canvas'),{width:EX_W,height:EX_H}); const g=cv.getContext('2d');
+  // 文字は、サイトの書体を確実に使えるよう普通のキャンバスで描いておき、それを貼り込む
+  // parts は [文字, 色, 書体（省略時は font）] の並び。同じ基準線にそろえて横に並べる
+  const textImg=(parts,font,spacing,baseline)=>{const c=document.createElement('canvas'),x=c.getContext('2d'); if(spacing&&'letterSpacing' in x)x.letterSpacing=spacing;
+   const ws=parts.map(([str,,f])=>{x.font=f||font; return x.measureText(str).width;}), w=Math.ceil(ws.reduce((a,b)=>a+b,0))+8, h=Math.ceil(baseline*1.45);
+   c.width=w; c.height=h; if(spacing&&'letterSpacing' in x)x.letterSpacing=spacing; x.textBaseline='alphabetic'; let px=2;
+   parts.forEach(([str,color,f],i)=>{x.font=f||font; x.fillStyle=color; x.fillText(str,px,baseline); px+=ws[i];}); return {c,w,baseline};};
+  // 「-彩音-」は漢字で字の密度が高いので、小さめにして控えめにする
+  const SERIF='"Instrument Serif", "Hiragino Mincho ProN", "Yu Mincho", "Noto Serif JP", serif';
+  const titleImg=textImg([['SIGHON',FG],['-彩音-',FG,`400 ${Math.round(TS*0.56)}px ${SERIF}`]],`400 ${TS}px ${SERIF}`,(TS*0.06).toFixed(1)+'px',TS);
+  const timeCache=new Map(), MONO='400 40px "Geist Mono", ui-monospace, Menlo, monospace';
+  const timeImg=str=>{let im=timeCache.get(str); if(!im){im=textImg([[str,FG],[' / '+fmt(D),MUTED]],MONO,'',40); timeCache.set(str,im);} return im;};
+  const scale=pw/360; // 画面（スマホ幅）に対する拡大率。粒子や線の太さに使う
+  // 紙を頭から作り直す
+  seek(0); const savedCyc=cycOff; cycOff=0;
+  let ci=-1, lastFrameT=0;
+  for(let k=0;k<total;k++){
+   if(exportCancel)throw new Error('cancel'); if(err)throw err;
+   const t=k/EX_FPS, playingNow=t<=D; tA=now();
+   // 水彩を進める（画面の frame() と同じ順番）
+   scrollTo(targetScroll(t));
+   GRAV=(varOn.rhythm&&feat&&playingNow)?0.07*varAmt.rhythm*featAt(feat.rhythm,t):0;
+   if(playingNow){
+    while(vIdx<notes.length&&notes[vIdx].t<=t)paintNote(notes[vIdx++]);
+    for(let j=active.length-1;j>=0;j--){const n=active[j]; if(t>=n.t+n.dur){active.splice(j,1);continue;} if(t-n.last>=0.04){n.last=t;strokeNote(n,t);}}
+   }
+   for(let s=0;s<EX_STEPS;s++)step();
+   render(); P.sim+=now()-tA; tA=now();
+   // 1コマを組み立てる
+   g.fillStyle=BG; g.fillRect(0,0,EX_W,EX_H);
+   g.drawImage(titleImg.c,M-5,blockY-44-titleImg.baseline);
+   if(boxH){
+    const tv=Math.min(t,D-0.001), i=clipAt(tv), c=clips[i];
+    if(i!==ci){ if(src){src.close();src=null;} ci=i; if(c.isVideo&&c.blob){src=await openFrames(c.blob);} }
+    if(src){
+     const tV=now(); const f=await src.frameAt(Math.max(0,tv-c.start)); P.video+=now()-tV;
+     if(f){const a=src.aspect, vh=Math.min(boxH,cw/a), vw=vh*a, vx=M+(cw-vw)/2, vy=boxY+(boxH-vh)/2;
+      g.globalAlpha=t>D?clamp(1-(t-D)/L,0,1):1; drawRotated(g,f,src.rot,vx,vy,vw,vh); g.globalAlpha=1;}
+    }
+   }
+   // 紙
+   g.save(); g.beginPath(); g.rect(M,paperY,pw,ph); g.clip(); g.fillStyle='#f4f2ec'; g.fillRect(M,paperY,pw,ph);
+   const cell=pw/VIS, frac=t*cps-Math.floor(t*cps); g.imageSmoothingEnabled=true; g.imageSmoothingQuality='high';
+   g.drawImage(paintCv,M-frac*cell,paperY,GW*cell,ph); g.restore();
+   drawPaperOverlay(g,M,paperY,pw,ph,t,scale);
+   // 時間（右下）
+   const tim=timeImg(fmt(Math.min(t,D))), ty=paperY+ph+timeBand-12;
+   g.drawImage(tim.c,EX_W-M-tim.w+6,ty-tim.baseline);
+   P.draw+=now()-tA; tA=now();
+   const fsrc=useOff?cv.transferToImageBitmap():cv;
+   const vf=new VideoFrame(fsrc,{timestamp:Math.round(k*1e6/EX_FPS),duration:Math.round(1e6/EX_FPS)}); if(useOff)fsrc.close();
+   venc.encode(vf,{keyFrame:k%(EX_FPS*2)===0}); vf.close(); P.frame+=now()-tA; tA=now();
+   while(venc.encodeQueueSize>4){await wait(1); if(err)throw err;} P.wait+=now()-tA; tA=now();
+   if(k%3===0){drawLayers(Math.min(t,D+L)); exportProgress(0.05+0.95*k/total,'Exporting'); await wait(0);} P.screen+=now()-tA;
+  }
+  if(src){src.close();src=null;}
+  tA=now(); await venc.flush(); venc.close(); venc=null; P.wait+=now()-tA;
+  muxer.finalize();
+  console.info('SIGHON export',((now()-T0)/1000).toFixed(1)+'s',Object.fromEntries(Object.entries(P).map(([k,v])=>[k,+(v/1000).toFixed(1)])),ve.cfg.codec,ae?ae.cfg.codec:'no audio');
+  const safe=(title||'SIGHON').replace(/\.[a-z0-9]{2,4}$/i,'').replace(/[\\/:*?"<>|]+/g,'_').slice(0,60);
+  exportResult=new File([muxer.target.buffer],`SIGHON - ${safe}.mp4`,{type:'video/mp4'});
+  cycOff=savedCyc;
+  busyEl.textContent=ae?'Export finished':'Export finished (no sound: this browser cannot encode audio)';
+ }catch(e){
+  if(src)src.close();
+  for(const x of [venc,aenc])try{if(x&&x.state!=='closed')x.close();}catch(_){}
+  exportResult=null;
+  busyEl.hidden=false; busyEl.textContent=e&&e.message==='cancel'?'Export cancelled':'Export failed: '+((e&&e.message)||e);
+  console.warn('SIGHON export',e);
+ }finally{
+  exporting=false; busy=false;
+  for(const el of [playBtn,document.getElementById('demo'),document.getElementById('file')])el.disabled=false;
+  document.querySelector('label.filebtn').style.opacity='';
+  seek(0); cta.hidden=false; syncExportBtn();
+  setTimeout(()=>{if(!busy&&!exporting)busyEl.hidden=true;},5000);
+ }
+}
+async function saveExport(){
+ const f=exportResult; if(!f)return;
+ // iPhone では共有シートから「ビデオを保存」で写真に入れられる。使えないときはダウンロードする
+ try{ if(navigator.canShare&&navigator.canShare({files:[f]})){await navigator.share({files:[f]}); return;} }
+ catch(e){ if(e&&e.name==='AbortError')return; }
+ const a=document.createElement('a'); a.href=URL.createObjectURL(f); a.download=f.name; document.body.appendChild(a); a.click(); a.remove();
+ setTimeout(()=>URL.revokeObjectURL(a.href),60000);
+}
+exportBtn.addEventListener('click',()=>{ if(exporting){exportCancel=true;return;} if(exportResult){saveExport();return;} runExport(); });
 
 refillPaper(); resize(); requestAnimationFrame(frame);
 loadDefault();
