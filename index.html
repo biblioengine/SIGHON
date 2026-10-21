@@ -98,6 +98,7 @@ h1 em{font-style:italic}
 h2{font:italic 400 22px/1 var(--display);margin:0 0 4px;letter-spacing:.005em}
 .row{display:grid;grid-template-columns:minmax(0,6.5em) minmax(0,1fr) 4.2ch;align-items:center;gap:12px}
 .row>span:first-child,.row label{color:var(--muted)}
+.focusrow{grid-template-columns:minmax(0,6.5em) minmax(0,1fr) 7.5ch}
 .row output{font:11px var(--mono);text-align:right;font-variant-numeric:tabular-nums}
 .row select{font:13px var(--body);padding:5px 6px;border:1px solid var(--faint);border-radius:4px;background:transparent;color:var(--fg);grid-column:2 / span 2}
 .check{display:flex;align-items:center;gap:8px;cursor:pointer;color:var(--fg)}
@@ -185,6 +186,8 @@ body{margin:0}
       <div class="row"><label for="sens">Sensitivity</label><input type="range" id="sens" min="0" max="1" step="0.05" value="0.5"><output id="sensOut">0.50</output></div>
       <div class="row"><label for="span">Window</label><select id="span"><option value="8">8 seconds</option><option value="16" selected>16 seconds</option><option value="32">32 seconds</option></select></div>
       <label class="check"><input type="checkbox" id="pencil" checked>Pencil guide</label>
+      <div class="row focusrow"><label for="focusF">Focus</label><input type="range" id="focusF" min="0" max="1000" step="1" value="700"><output id="focusFOut">3.6 kHz</output></div>
+      <div class="row focusrow"><label for="focusS">Strength</label><input type="range" id="focusS" min="0" max="100" step="1" value="0"><output id="focusSOut">Off</output></div>
     </section>
 
     <section class="wide">
@@ -521,17 +524,20 @@ function pick(an,s){
   const bm=ps[F]/Math.max(1,F);
   const srt=Array.from(fl).sort((a,c)=>a-c); const p98=Math.max(1e-6,srt[Math.floor(srt.length*0.98)]||1e-6);
   const se=Array.from(en).sort((a,c)=>a-c); const e95=se[Math.floor(se.length*0.95)]||0;
-  const gap=Math.round((MODE==='new'?NEW_GAP:(SUBS[b].g===0?0.08:0.06))*fps); let last=-1e9;
+  // Focus：ピントの帯域は小さな音も拾い（基準を下げる）、外側は大きな音だけを拾う（基準を上げる）
+  const fw=focusW(b), fin=FOCUS.s*fw, fout=FOCUS.s*(1-fw);
+  const kb=k*(1-0.45*fin+0.6*fout), floorB=NEW_FLOOR*(1-0.75*fin)*(1+3*fout);
+  const gap=Math.round((MODE==='new'?NEW_GAP*(1-0.5*fin):(SUBS[b].g===0?0.08:0.06))*fps); let last=-1e9;
   for(let i=1;i<F-1;i++){
    const a=Math.max(0,i-Wn), z=Math.min(F-1,i+Wn), lm=(ps[z+1]-ps[a])/(z-a+1);
-   if(fl[i]>k*lm+0.15*bm&&fl[i]>=fl[i-1]&&fl[i]>fl[i+1]&&i-last>=gap){
+   if(fl[i]>kb*lm+0.15*bm&&fl[i]>=fl[i-1]&&fl[i]>fl[i+1]&&i-last>=gap){
     const i1=Math.min(F-1,i+1), i2=Math.min(F-1,i+2); const e0=Math.max(en[i],en[i1],en[i2]); const tt=Math.max(an.total[i],an.total[i1],an.total[i2])+1e-12;
     if(MODE==='current'){
      // 今の版：高い音域ほど元々の音量が小さいので、全体との比較の基準を音域ごとに下げる
      if(e0<0.03*e95||e0/tt<SUBS[b].thr)continue;
     }else{
      // New：曲全体の音量とは比べず、その音域の「普段の大きさ」と比べる（高い音も、その音域で目立てば拾う）
-     if(e0<NEW_FLOOR*e95||e0/tt<NEW_ABS)continue;
+     if(e0<floorB*e95||e0/tt<NEW_ABS)continue;
     }
     last=i;
     let j=i+1; const mj=Math.min(F-1,i+Math.round(4*fps)); while(j<mj&&en[j]>0.12*e0)j++;
@@ -543,6 +549,12 @@ function pick(an,s){
  out.sort((a,c)=>a.t-c.t); return out;
 }
 function peakOf(an,b,i){const bin=Math.max(an.peak[b][i],an.peak[b][Math.min(an.frames-1,i+1)]);return clamp(bin*an.sr/an.NF,SUBS[b].lo,SUBS[b].hi);}
+// ---------- Focus（耳を澄ませる帯域） ----------
+// 周波数 f（Hz）と強さ s（0〜1）。各 SUBS の中心がピントから何オクターブ離れているかで重み（0〜1）を決める。
+const FOCUS={f:3600,s:0}, FOCUS_SIGMA=0.8;
+function focusW(b){if(!FOCUS.s)return 0; const c=Math.sqrt(SUBS[b].lo*SUBS[b].hi), d=Math.log2(c/FOCUS.f)/FOCUS_SIGMA; return Math.exp(-0.5*d*d);}
+// 絵の具の倍率：ピントの帯域は大きく濃く、外側は小さく淡く
+function focusMul(b){const w=focusW(b), i=FOCUS.s*w, o=FOCUS.s*(1-w); return {r:1+0.6*i-0.35*o, pig:1+0.6*i-0.45*o, water:1+0.3*i-0.25*o};}
 let NEW_FLOOR=0.1, NEW_ABS=2e-6, NEW_K=1.4, NEW_GAP=0.15; // New の拾い方（Ballerinoで、今の版より少し多い密度になるよう調整）
 
 
@@ -958,11 +970,11 @@ function effAbs(b,t){
 }
 function paintNote(n){
  const s=SUBS[n.band], cx=gxT(n.t+cycOff), cy=gyF(n.freq);
- const r=(s.r[0]+(s.r[1]-s.r[0])*n.vel)*(0.85+0.3*Math.random());
+ const fm=focusMul(n.band), r=(s.r[0]+(s.r[1]-s.r[0])*n.vel)*(0.85+0.3*Math.random())*fm.r;
  const ab=effAbs(n.band,n.t);
- deposit(cx,cy,r,s.water*(0.7+0.5*n.vel),s.pig*(0.6+0.6*n.vel),ab,5);
+ deposit(cx,cy,r,s.water*(0.7+0.5*n.vel)*fm.water,s.pig*(0.6+0.6*n.vel)*fm.pig,ab,5);
  if(s.splat){const k=2+Math.floor(Math.random()*4*n.vel);for(let j=0;j<k;j++){const a=Math.random()*6.28, d=r*(1.4+Math.random()*2.2);
-  deposit(cx+Math.cos(a)*d,cy+Math.sin(a)*d*0.8,0.8+Math.random()*1.6,s.water*0.7,s.pig*0.9,ab,2);}}
+  deposit(cx+Math.cos(a)*d,cy+Math.sin(a)*d*0.8,(0.8+Math.random()*1.6)*fm.r,s.water*0.7*fm.water,s.pig*0.9*fm.pig,ab,2);}}
  // 同じ音域・近い高さの古い筆は、新しい音が来たら止める
  for(let k=active.length-1;k>=0;k--){const o=active[k]; if(o.band===n.band&&Math.abs(Math.log2(o.freq/n.freq))<0.6)active.splice(k,1);}
  if(n.dur>0.15){n.last=n.t;active.push(n);}
@@ -972,8 +984,8 @@ function strokeNote(n,t){
  const s=SUBS[n.band], fi=clamp(Math.floor(t*an.sr/an.HOP),0,an.frames-1);
  const env=Math.sqrt(clamp(an.energy[n.band][fi]/Math.max(1e-12,n.e0),0,1));
  if(env<0.08)return;
- const base=(s.r[0]+(s.r[1]-s.r[0])*n.vel);
- deposit(gxT(t+cycOff),gyF(n.freq)+(Math.random()-0.5)*0.9,base*(0.4+0.45*env),s.water*(0.3+0.45*env),s.pig*(0.14+0.32*env)*(0.6+0.6*n.vel),effAbs(n.band,t),2);
+ const fm=focusMul(n.band), base=(s.r[0]+(s.r[1]-s.r[0])*n.vel)*fm.r;
+ deposit(gxT(t+cycOff),gyF(n.freq)+(Math.random()-0.5)*0.9,base*(0.4+0.45*env),s.water*(0.3+0.45*env)*fm.water,s.pig*(0.14+0.32*env)*(0.6+0.6*n.vel)*fm.pig,effAbs(n.band,t),2);
 }
 
 // ---------- drawing ----------
@@ -1116,6 +1128,21 @@ async function loadDefault(){
 }
 document.getElementById('demo').addEventListener('click',()=>{if(!busy)loadDefault();});
 sensEl.addEventListener('input',()=>{document.getElementById('sensOut').textContent=(+sensEl.value).toFixed(2);});
+// Focus：スライダーを動かしたら、今より先の音だけを拾い直す。すでに紙に描かれた絵の具はそのまま残す
+const focusFEl=document.getElementById('focusF'), focusSEl=document.getElementById('focusS');
+const sliderToHz=v=>30*Math.pow(12000/30,v/1000), fmtHz=f=>f>=1000?(f/1000).toFixed(f>=10000?0:1)+' kHz':Math.round(f)+' Hz';
+let focusT=null;
+function repickLive(){
+ if(!an||busy||exporting)return;
+ const t=clock(); notes=pick(an,+sensEl.value); vIdx=lowerBound(t); buildOverview(); drawOverview();
+}
+function onFocus(){
+ FOCUS.f=sliderToHz(+focusFEl.value); FOCUS.s=(+focusSEl.value)/100;
+ document.getElementById('focusFOut').textContent=fmtHz(FOCUS.f);
+ document.getElementById('focusSOut').textContent=FOCUS.s?Math.round(FOCUS.s*100)+'%':'Off';
+ clearTimeout(focusT); focusT=setTimeout(repickLive,120);
+}
+focusFEl.addEventListener('input',onFocus); focusSEl.addEventListener('input',onFocus); onFocus();
 sensEl.addEventListener('change',()=>{if(!an)return;notes=pick(an,+sensEl.value);buildOverview();seek(clock());});
 document.getElementById('span').addEventListener('change',e=>{SPAN=+e.target.value;cps=VIS/SPAN;if(buffer)seek(clock());});
 ovBox.addEventListener('click',e=>{if(!buffer||busy)return;const r=ovBox.getBoundingClientRect();seek((e.clientX-r.left)/r.width*buffer.duration);});
