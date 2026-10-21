@@ -237,13 +237,13 @@ const PAPER=[244,242,236];
 const INST=[
  {kind:'str',cut:2600},{kind:'str',cut:1000},{kind:'brass'},{kind:'ww'},{kind:'timp'}
 ];
-// 音域ごとの絵の具
+// 音域ごとの絵の具（2026-10-21：低音の水っぽさと高音の寂しさを和らげるため、粒の大きさと水の量の差を Mid を基準に約6割に縮めた）
 const BANDS=[
- {name:'Low',hz:'30–150 Hz',lo:30,hi:150,color:[0.886,0.314,0.996],r:[3.4,5.6],water:1.3,pig:0.5,splat:true},
- {name:'Low-mid',hz:'150–400 Hz',lo:150,hi:400,color:[0.227,0.529,0.996],r:[3.6,6],water:1.15,pig:0.5,stroke:true},
+ {name:'Low',hz:'30–150 Hz',lo:30,hi:150,color:[0.886,0.314,0.996],r:[3.2,5.0],water:1.13,pig:0.5,splat:true},
+ {name:'Low-mid',hz:'150–400 Hz',lo:150,hi:400,color:[0.227,0.529,0.996],r:[3.3,5.4],water:1.05,pig:0.5,stroke:true},
  {name:'Mid',hz:'400 Hz–1.2 kHz',lo:400,hi:1200,color:[0.463,0.733,0.251],r:[2.8,4.4],water:0.95,pig:0.55,stroke:true},
- {name:'High-mid',hz:'1.2–4 kHz',lo:1200,hi:4000,color:[0.996,0.725,0.243],r:[2.4,4],water:0.85,pig:0.75,stroke:true},
- {name:'High',hz:'4–12 kHz',lo:4000,hi:12000,color:[1.000,0.525,0.282],r:[1.4,2.4],water:0.55,pig:0.6,stroke:true},
+ {name:'High-mid',hz:'1.2–4 kHz',lo:1200,hi:4000,color:[0.996,0.725,0.243],r:[2.6,4.2],water:0.9,pig:0.75,stroke:true},
+ {name:'High',hz:'4–12 kHz',lo:4000,hi:12000,color:[1.000,0.525,0.282],r:[2.1,3.2],water:0.75,pig:0.6,stroke:true},
 ];
 BANDS.forEach(s=>{s.base=s.color.slice();s.abs=s.color.map(c=>-Math.log(Math.max(0.03,c)));});
 // ---------- 音を拾って描くための音域（SUBS） ----------
