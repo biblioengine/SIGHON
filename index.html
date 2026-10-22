@@ -818,7 +818,8 @@ let mp4boxP=null;
 function loadMp4box(){
  if(window.MP4Box)return Promise.resolve(window.MP4Box);
  if(!mp4boxP)mp4boxP=new Promise((res,rej)=>{const sc=document.createElement('script');
-  sc.src='https://cdn.jsdelivr.net/npm/mp4box@0.5.2/dist/mp4box.all.min.js';
+  // 外部の配信元に頼らず、リポジトリに同梱した版（mp4box 0.5.2、BSD-3-Clause）を使う
+  sc.src='lib/mp4box.all.min.js';
   sc.onload=()=>window.MP4Box?res(window.MP4Box):rej(new Error('mp4box'));sc.onerror=()=>{mp4boxP=null;rej(new Error('mp4box'));};document.head.appendChild(sc);});
  return mp4boxP;
 }
@@ -847,7 +848,8 @@ let muxerP=null;
 function loadMuxer(){
  if(window.Mp4Muxer)return Promise.resolve(window.Mp4Muxer);
  if(!muxerP)muxerP=new Promise((res,rej)=>{const sc=document.createElement('script');
-  sc.src='https://cdn.jsdelivr.net/npm/mp4-muxer@5.2.1/build/mp4-muxer.js';
+  // 外部の配信元に頼らず、リポジトリに同梱した版（mp4-muxer 5.2.1、MIT）を使う
+  sc.src='lib/mp4-muxer.js';
   sc.onload=()=>window.Mp4Muxer?res(window.Mp4Muxer):rej(new Error('muxer'));sc.onerror=()=>{muxerP=null;rej(new Error('muxer'));};document.head.appendChild(sc);});
  return muxerP;
 }
