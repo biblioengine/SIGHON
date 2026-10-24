@@ -1,0 +1,1632 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="icon" type="image/png" sizes="32x32" href="icon/sighon-icon-32.png?v=2">
+<link rel="apple-touch-icon" href="icon/sighon-icon-180.png?v=2">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="apple-mobile-web-app-title" content="SIGHON">
+<meta name="theme-color" content="#e8e8eb">
+<title>SIGHON live</title>
+<meta name="robots" content="noindex">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500&family=Geist+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a single sheet of paper held at the top; everything else is a quiet index of controls set on a 4-column grid below it */
+:root{
+  --bg:#e8e8eb; --fg:#17161b; --muted:#76747e; --faint:#c9c8cf; --accent:#c4267d;
+  --display:"Instrument Serif","Times New Roman",serif;
+  --body:"Geist","Helvetica Neue",Arial,sans-serif;
+  --mono:"Geist Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#111014;--fg:#ebe9f0;--muted:#8d8996;--faint:#2f2c35;--accent:#e4589f;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#111014;--fg:#ebe9f0;--muted:#8d8996;--faint:#2f2c35;--accent:#e4589f;color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--body);font-size:13px;line-height:1.5;-webkit-font-smoothing:antialiased}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--bg)}
+.wrap{max-width:1180px;margin:0 auto;padding-block:28px 56px;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
+  display:flex;flex-direction:column;gap:22px}
+
+/* タイトルは画面上部に固定し、その下に映像と紙を固定する（その下の操作類だけがスクロールする） */
+header{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-end;gap:8px 24px;
+  position:sticky;top:env(safe-area-inset-top,0px);z-index:6;background:var(--bg);padding-block:10px 12px;margin-block:-10px -12px}
+h1{font-family:var(--display);font-weight:400;font-size:clamp(40px,6.4vw,68px);line-height:.92;letter-spacing:.06em;margin:0}
+h1 em{font-style:italic}
+.sub{display:block;font-family:var(--body);font-size:12px;letter-spacing:.02em;color:var(--muted);margin-top:10px;line-height:1.4}
+.hright{display:flex;flex-direction:column;align-items:flex-end;gap:10px;min-width:0}
+.themebtn{display:inline-flex;align-items:center;gap:7px;font:500 11px/1 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--fg);background:transparent;border:1px solid var(--faint);border-radius:999px;padding:6px 11px 6px 8px;cursor:pointer}
+.themebtn:hover{border-color:var(--fg)}
+@media (max-width:600px){.themebtn{position:absolute;top:16px;right:0}.hright{align-items:flex-start}header .meta{text-align:left}}
+.meta{font-family:var(--mono);font-size:11px;color:var(--muted);text-align:right;min-width:0;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
+.meta b{color:var(--fg);font-weight:500}
+
+.deck{display:contents}
+.privacy{margin:-22px 0 0;font-size:12px;line-height:1.6;color:var(--muted);max-height:0;opacity:0;overflow:hidden;transition:opacity .35s ease,max-height .35s ease,margin .35s ease}
+.privacy.show{opacity:1;max-height:4em;margin-top:-10px}
+.panel{display:flex;flex-direction:column;gap:22px;min-width:0}
+/* 映像の外側は塗らず、ページの背景をそのまま見せる（縦動画の左右が黒くならないように） */
+.vidbox{display:flex;justify-content:center;background:transparent;margin-bottom:10px}
+.vidbox video{display:block;aspect-ratio:var(--ar,1.7778);width:min(100%,calc(30vh * var(--ar,1.7778)));height:auto}
+.deck.vid-on .stage{width:min(100%,calc(46vh * 16 / 9))}
+/* iPhone を横にしたとき：上段に映像と操作パネル、下段に紙 */
+@media (orientation:landscape) and (max-height:560px){
+  .deck.vid-on{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);grid-template-areas:"vid panel" "stage stage";gap:14px 18px}
+  .deck.vid-on .stickybox{display:contents}
+  .deck.vid-on .vidbox{grid-area:vid;margin:0;align-self:start}
+  .deck.vid-on .vidbox video{width:min(100%,calc(34vh * var(--ar,1.7778)))}
+  .deck.vid-on .panel{grid-area:panel;gap:14px;align-self:center}
+  .deck.vid-on .stage{grid-area:stage;width:min(100%,calc(50vh * 16 / 9))}
+  .wrap:has(.deck.vid-on){padding-block:6px 40px;gap:10px}
+  .wrap:has(.deck.vid-on) header{flex-wrap:nowrap;align-items:baseline;position:static;padding:0;margin:0}
+  .wrap:has(.deck.vid-on) h1{font-size:28px}
+  .wrap:has(.deck.vid-on) .sub{display:inline;margin:0 0 0 12px}
+  .wrap:has(.deck.vid-on) .meta br{display:none}
+  .wrap:has(.deck.vid-on) .hright{flex-direction:row-reverse;align-items:center;gap:14px}
+  .wrap:has(.deck.vid-on) .themebtn{padding:4px 9px 4px 6px}
+  .deck.vid-on .tc{font-size:18px}
+}
+.stickybox{position:sticky;top:calc(env(safe-area-inset-top,0px) + var(--hh,0px));z-index:5;background:var(--bg);padding-block:10px;margin-block:-10px}
+.stage{position:relative;width:min(100%,calc(58vh * 16 / 9));margin-inline:auto;aspect-ratio:16/9;max-width:100%;background:#f4f2ec;isolation:isolate;overflow:hidden}
+.stage.drag{outline:2px solid var(--accent);outline-offset:-2px}
+.stage canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+#static{mix-blend-mode:multiply}
+#paint{right:auto;will-change:transform}
+.cta{position:absolute;inset:0;margin:auto;width:max-content;height:max-content;display:flex;align-items:center;gap:10px;
+  padding:11px 20px 11px 16px;border:0;border-radius:999px;background:#17161b;color:#f4f2ec;font:500 13px/1 var(--body);letter-spacing:.01em;cursor:pointer}
+.cta::before{content:"";width:0;height:0;border-left:9px solid #c4267d;border-top:6px solid transparent;border-bottom:6px solid transparent}
+.cta small{font-family:var(--mono);font-size:10px;color:#a9a6b0;letter-spacing:.04em}
+.busy{position:absolute;left:12px;bottom:10px;font:11px var(--mono);color:#3a3442;background:rgba(244,242,236,.88);padding:3px 8px}
+
+.transport{display:flex;flex-wrap:wrap;align-items:center;gap:10px 18px}
+.btn,.filebtn{font:500 13px/1 var(--body);padding:9px 14px;border-radius:999px;border:1px solid var(--faint);background:transparent;color:var(--fg);cursor:pointer;display:inline-flex;align-items:center;gap:8px}
+.btn:hover,.filebtn:hover{border-color:var(--fg)}
+.btn.play{background:var(--fg);border-color:var(--fg);color:var(--bg);min-width:84px;justify-content:center}
+.btn:disabled{opacity:.4;cursor:default}
+.filebtn input{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
+.tc{margin-left:auto;font:400 22px/1 var(--mono);letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.tc span{color:var(--muted)}
+.overview{position:relative;height:38px;cursor:pointer}
+.overview canvas{position:absolute;inset:0;width:100%;height:100%}
+
+.index{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:32px 28px;padding-top:6px}
+.index section{min-width:0;display:flex;flex-direction:column;gap:12px}
+.index .wide{grid-column:span 2}
+@media (max-width:900px){.index{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:560px){.index{grid-template-columns:minmax(0,1fr)}.index .wide{grid-column:auto}}
+h2{font:italic 400 22px/1 var(--display);margin:0 0 4px;letter-spacing:.005em}
+.row{display:grid;grid-template-columns:minmax(0,6.5em) minmax(0,1fr) 4.2ch;align-items:center;gap:12px}
+.row>span:first-child,.row label{color:var(--muted)}
+.focusrow{grid-template-columns:minmax(0,6.5em) minmax(0,1fr) 7.5ch}
+.row output{font:11px var(--mono);text-align:right;font-variant-numeric:tabular-nums}
+.row select{font:13px var(--body);padding:5px 6px;border:1px solid var(--faint);border-radius:4px;background:transparent;color:var(--fg);grid-column:2 / span 2}
+.check{display:flex;align-items:center;gap:8px;cursor:pointer;color:var(--fg)}
+.check input{accent-color:var(--accent);width:14px;height:14px;margin:0}
+.textbtn{font:inherit;font-size:12px;background:none;border:0;padding:0;color:var(--muted);text-decoration:underline;text-underline-offset:3px;cursor:pointer;align-self:flex-start}
+.textbtn:hover{color:var(--fg)}
+
+.mod{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr) 4.2ch;gap:6px 14px;align-items:center}
+.mod .check{grid-column:1 / -1}
+.mod .check em{font-style:normal;color:var(--muted)}
+.mod .meter{grid-column:1;height:2px;background:var(--faint);position:relative}
+.mod .meter i{position:absolute;inset:0 auto 0 0;width:0;background:var(--accent);transition:width .2s linear}
+.mod b{font:500 11px var(--mono);text-align:right;font-variant-numeric:tabular-nums;grid-column:3}
+.mod input[type=range]{grid-column:2}
+.mod{padding-bottom:4px}
+
+input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:18px;background:transparent;margin:0;min-width:0}
+input[type=range]::-webkit-slider-runnable-track{height:1px;background:var(--fg)}
+input[type=range]::-moz-range-track{height:1px;background:var(--fg)}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:11px;height:11px;border-radius:50%;background:var(--accent);margin-top:-5px;border:0}
+input[type=range]::-moz-range-thumb{width:11px;height:11px;border-radius:50%;background:var(--accent);border:0}
+input[type=range]:disabled{opacity:.35}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.filebtn:focus-within{outline:2px solid var(--accent);outline-offset:2px}
+
+.legend{display:flex;flex-wrap:wrap;gap:8px 22px;margin:0;padding:0;list-style:none}
+.legend li{display:flex;align-items:center;gap:8px}
+.swatch{position:relative;display:inline-flex;cursor:pointer;padding:3px;margin:-3px;border-radius:50%}
+.swatch input{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;border:0;padding:0}
+.swatch:hover .blot{transform:scale(1.25)}
+.swatch:focus-within{outline:2px solid var(--accent);outline-offset:1px}
+.blot{transition:transform .15s;width:16px;height:13px;border-radius:48% 52% 41% 59%/56% 44% 54% 46%;flex:none}
+.legend em{font-style:normal;font-family:var(--mono);font-size:11px;color:var(--muted)}
+
+.readout{display:flex;flex-wrap:wrap;gap:6px 28px;font:11px var(--mono);color:var(--muted);font-variant-numeric:tabular-nums}
+.readout strong{font-weight:500;color:var(--fg);margin-left:6px}
+.readout strong.warn{color:var(--accent)}
+.midistat{margin:0;font:11px var(--mono);color:var(--muted);line-height:1.6;overflow-wrap:anywhere}
+.midistat b{font-weight:400;color:var(--fg)}
+.midiprompt{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);z-index:50;width:min(440px,calc(100% - 32px));box-sizing:border-box;padding:14px 18px;border-radius:10px;background:var(--fg);color:var(--bg);font-size:14px;line-height:1.5;box-shadow:0 8px 30px rgba(0,0,0,.18)}
+.midiprompt[hidden]{display:none}
+.midiprompt small{display:block;font:11px var(--mono);opacity:.65;margin-bottom:2px}
+.midiprompt .midibtns{margin-top:10px}
+.midiprompt .textbtn{color:var(--bg);opacity:.75}
+.midiprompt .textbtn:hover{color:var(--bg);opacity:1}
+.midibtns{display:flex;gap:16px}
+.learning{outline:1px solid var(--accent);outline-offset:6px;border-radius:2px}
+.colophon{max-width:62ch;color:var(--muted);margin:0;font-size:12px}
+html{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+body{margin:0}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header>
+    <h1>SIGHON</h1>
+    <div class="hright">
+      <button class="themebtn" id="themeBtn" type="button" aria-label="Switch to dark mode"><svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true"><circle cx="10" cy="10" r="7.5" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M10 2.5a7.5 7.5 0 0 1 0 15z" fill="currentColor"/></svg><span id="themeLabel">Dark</span></button>
+      <div class="meta" id="meta" hidden></div>
+    </div>
+  </header>
+
+  <div class="deck" id="deck">
+  <div class="stickybox">
+  <div class="vidbox" id="vidbox" hidden><video id="vidA" muted playsinline preload="auto"></video><video id="vidB" muted playsinline preload="auto" hidden></video></div>
+  <div class="stage" id="stage">
+    <canvas id="paint" width="288" height="162"></canvas>
+    <canvas id="static"></canvas>
+    <canvas id="over"></canvas>
+    <button class="cta" id="cta" hidden>Play<small>SOUND ON</small></button>
+    <div class="busy" id="busy">Analysing</div>
+  </div>
+  </div>
+
+  <div class="panel">
+  <div class="transport">
+    <button class="btn play" id="play" disabled>Play</button>
+    <label class="filebtn" for="file">Load audio<input type="file" id="file" accept="audio/*,video/*,.mp3,.wav,.m4a,.aac,.ogg,.flac,.mov,.mp4,.m4v" multiple></label>
+    <button class="btn" id="demo">Ballerino</button>
+    <button class="btn" id="exportBtn" type="button" hidden>Export</button>
+    <label class="check" id="vidToggleWrap" for="vidToggle" hidden><input type="checkbox" id="vidToggle" checked>Video</label>
+    <label class="check" for="loopEl"><input type="checkbox" id="loopEl">Loop</label>
+    <div class="tc" id="hPos">0:00 <span>/ 0:00</span></div>
+  </div>
+  <p class="privacy" id="privacy" aria-live="polite">選んだファイルはこの端末の中だけで処理され、どこにも送信・保存されません。</p>
+  <div class="overview" id="overview" title="Jump to this point"><canvas id="ovCv"></canvas></div>
+  </div>
+  </div>
+
+  <div class="index">
+    <section>
+      <h2>Detection</h2>
+      <div class="row"><label for="sens">Sensitivity</label><input type="range" id="sens" min="0" max="1" step="0.05" value="0.5"><output id="sensOut">0.50</output></div>
+      <div class="row"><label for="span">Window</label><select id="span"><option value="8">8 seconds</option><option value="16" selected>16 seconds</option><option value="32">32 seconds</option></select></div>
+      <label class="check"><input type="checkbox" id="pencil" checked>Pencil guide</label>
+      <div class="row focusrow"><label for="focusF">Focus</label><input type="range" id="focusF" min="0" max="1000" step="1" value="700"><output id="focusFOut">3.6 kHz</output></div>
+      <div class="row focusrow"><label for="focusS">Strength</label><input type="range" id="focusS" min="0" max="100" step="1" value="0"><output id="focusSOut">Off</output></div>
+    </section>
+
+    <section class="wide">
+      <h2>Modulation</h2>
+      <div class="mod" id="m_thick">
+        <label class="check" for="v_thick"><input type="checkbox" id="v_thick" checked>Harmonic density <em>→ pigment mixing</em></label>
+        <span class="meter"><i></i></span>
+        <input type="range" id="a_thick" min="0" max="100" value="70" aria-label="Harmonic density amount"><b>0</b>
+      </div>
+      <div class="mod" id="m_bright">
+        <label class="check" for="v_bright"><input type="checkbox" id="v_bright" checked>Spectral brightness <em>→ colour temperature</em></label>
+        <span class="meter"><i></i></span>
+        <input type="range" id="a_bright" min="0" max="100" value="70" aria-label="Spectral brightness amount"><b>0</b>
+      </div>
+      <div class="mod" id="m_rhythm">
+        <label class="check" for="v_rhythm"><input type="checkbox" id="v_rhythm" checked>Rhythmic energy <em>→ paper tilt</em></label>
+        <span class="meter"><i></i></span>
+        <input type="range" id="a_rhythm" min="0" max="100" value="70" aria-label="Rhythmic energy amount"><b>0</b>
+      </div>
+      <output id="o_thick" hidden></output><output id="o_bright" hidden></output><output id="o_rhythm" hidden></output>
+      <div class="row"><label for="bleed">Bleed</label><input type="range" id="bleed" min="-100" max="100" step="1" value="0"><output id="bleedOut">0</output></div>
+    </section>
+
+    <section>
+      <h2>Colour</h2>
+      <div class="row"><label for="cTarget">Apply to</label><select id="cTarget"><option value="all">All bands</option></select></div>
+      <div class="row"><label for="cHue">Hue</label><input type="range" id="cHue" min="-180" max="180" step="1" value="0"><output id="cHueOut">0°</output></div>
+      <div class="row"><label for="cSat">Saturation</label><input type="range" id="cSat" min="0" max="200" step="1" value="100"><output id="cSatOut">100%</output></div>
+      <div class="row"><label for="cLit">Lightness</label><input type="range" id="cLit" min="-40" max="40" step="1" value="0"><output id="cLitOut">0</output></div>
+      <button class="textbtn" id="cReset">Reset</button>
+    </section>
+
+    <section>
+      <h2>MIDI</h2>
+      <p class="midistat" id="midiStat">Connecting…</p>
+      <div class="midiprompt" id="midiPrompt" hidden><p id="midiText" style="margin:0"></p><div class="midibtns"><button class="textbtn" id="midiSkip" type="button">Skip</button><button class="textbtn" id="midiCancel" type="button">Cancel</button></div></div>
+      <div class="midibtns"><button class="textbtn" id="midiLearn" type="button">Learn</button></div>
+      <p class="midistat" id="midiLast"></p>
+    </section>
+  </div>
+
+  <ul class="legend" id="legend"></ul>
+
+  <div class="readout" aria-live="off">
+    <span>Onsets<strong id="hTotal">0</strong></span>
+    <span>Per second<strong id="hNps">0</strong></span>
+    <span>Wet area<strong id="hWet">0%</strong></span>
+    <span>Frame rate<strong id="hFps">—</strong></span>
+  </div>
+
+  <p class="colophon">The track is analysed in full before playback and split into five frequency bands. Each onset becomes a pencil mark on a moving sheet; as it crosses the centre line, pigment is dropped, spreads while wet and settles as it dries. Drop an audio file onto the paper to load it.</p>
+</div>
+
+<script>
+(()=>{
+const GW=288, GH=162, N=GW*GH;
+const PAPER=[244,242,236];
+// サンプル音源を合成するための架空の5楽器（前回の試作と同じ）
+const INST=[
+ {kind:'str',cut:2600},{kind:'str',cut:1000},{kind:'brass'},{kind:'ww'},{kind:'timp'}
+];
+// 音域ごとの絵の具（2026-10-21：低音の水っぽさと高音の寂しさを和らげるため、粒の大きさと水の量の差を Mid を基準に約6割に縮めた）
+const BANDS=[
+ {name:'Low',hz:'30–150 Hz',lo:30,hi:150,color:[0.886,0.314,0.996],r:[3.2,5.0],water:1.13,pig:0.5,splat:true},
+ {name:'Low-mid',hz:'150–400 Hz',lo:150,hi:400,color:[0.227,0.529,0.996],r:[3.3,5.4],water:1.05,pig:0.5,stroke:true},
+ {name:'Mid',hz:'400 Hz–1.2 kHz',lo:400,hi:1200,color:[0.463,0.733,0.251],r:[2.8,4.4],water:0.95,pig:0.55,stroke:true},
+ {name:'High-mid',hz:'1.2–4 kHz',lo:1200,hi:4000,color:[0.996,0.725,0.243],r:[2.6,4.2],water:0.9,pig:0.75,stroke:true},
+ {name:'High',hz:'4–12 kHz',lo:4000,hi:12000,color:[1.000,0.525,0.282],r:[2.1,3.2],water:0.75,pig:0.6,stroke:true},
+];
+BANDS.forEach(s=>{s.base=s.color.slice();s.abs=s.color.map(c=>-Math.log(Math.max(0.03,c)));});
+// ---------- 音を拾って描くための音域（SUBS） ----------
+// 色の設定は5つの音域（BANDS）のまま。音を拾う・描く単位は SUBS で、New では12本に細かく分ける。
+// 各 SUBS の色や筆の大きさは、5つの音域の中心のあいだを周波数（対数）でなめらかにつないで決める。
+// MODE を 'current' にすると、SUBS＝以前の5本そのもの（2026-10-21までの動き）に戻せる。
+let MODE='new', SUBS=[];
+const SPLIT=[2,2,3,3,2]; const OLD_THR=[0.004,0.0015,0.0006,0.00015,0.00003];
+const bandCenter=B=>Math.log2(Math.sqrt(B.lo*B.hi));
+function gposOf(f){const lc=Math.log2(f), cs=BANDS.map(bandCenter);
+ if(lc<=cs[0])return 0; if(lc>=cs[cs.length-1])return cs.length-1;
+ for(let k=0;k<cs.length-1;k++)if(lc<cs[k+1])return k+(lc-cs[k])/(cs[k+1]-cs[k]); return cs.length-1;}
+function lerpAt(gp,get){const k=Math.min(BANDS.length-2,Math.floor(gp)), f=gp-k, a=get(BANDS[k]), b=get(BANDS[k+1]);
+ return Array.isArray(a)?a.map((x,i)=>x*(1-f)+b[i]*f):a*(1-f)+b*f;}
+function buildSubs(){
+ if(MODE==='current'){SUBS=BANDS.map((B,i)=>({lo:B.lo,hi:B.hi,g:i,gpos:i,r:B.r,water:B.water,pig:B.pig,splat:!!B.splat,thr:OLD_THR[i]}));}
+ else{SUBS=[];
+  // 5つの音域それぞれを、対数で等しく分ける（低音は分けすぎると低音ばかり拾うので、分け方を音域ごとに決める）
+  BANDS.forEach((B,g)=>{const n=SPLIT[g], L0=Math.log2(B.lo), L1=Math.log2(B.hi);
+   for(let i=0;i<n;i++){const lo=2**(L0+(L1-L0)*i/n), hi=2**(L0+(L1-L0)*(i+1)/n), gp=gposOf(Math.sqrt(lo*hi));
+    SUBS.push({lo,hi,g,gpos:gp,r:lerpAt(gp,B=>B.r),water:lerpAt(gp,B=>B.water),pig:lerpAt(gp,B=>B.pig),splat:g===0});}});}
+ updateSubColors();
+}
+function updateSubColors(){for(const s of SUBS){s.abs=lerpAt(s.gpos,B=>B.abs); s.color=s.abs.map(a=>Math.exp(-a));}}
+buildSubs(); let anCache={};
+const lg=document.getElementById('legend');
+const hex2=v=>Math.round(Math.min(1,Math.max(0,v))*255).toString(16).padStart(2,'0');
+function renderLegend(){lg.innerHTML='';BANDS.forEach((s,i)=>{const li=document.createElement('li');const c=s.abs.map((a,k)=>Math.round(PAPER[k]*Math.exp(-0.9*a)));
+ const id='pick'+i, hex='#'+s.base.map(hex2).join('');
+ li.innerHTML=`<label class="swatch" for="${id}" title="Change colour"><span class="blot" style="background:rgb(${c})"></span><input type="color" id="${id}" value="${hex}" aria-label="${s.name} colour"></label><span>${s.name} <em>${s.hz}</em></span>`;
+ li.querySelector('input').addEventListener('input',e=>{const v=e.target.value; s.base=[1,3,5].map(k=>parseInt(v.slice(k,k+2),16)/255); applyColors(true);});
+ lg.appendChild(li);});}
+renderLegend();
+
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+const clamp=(v,a,b)=>v<a?a:v>b?b:v;
+
+// ---------- paper ----------
+const paper=new Float32Array(N), perm=new Float32Array(N), paperTile=new Float32Array(N), permTile=new Float32Array(N);
+(function(){const R=mulberry32(7331);
+ for(const [cells,amp] of [[5,0.45],[13,0.3],[34,0.25]]){
+  const gw=cells+2, gh=Math.ceil(cells*GH/GW)+2; const g=new Float32Array(gw*gh); for(let i=0;i<g.length;i++)g[i]=R();
+  for(let y=0;y<GH;y++)for(let x=0;x<GW;x++){const fx=x/GW*cells, fy=y/GW*cells, ix=fx|0, iy=fy|0;
+   let tx=fx-ix, ty=fy-iy; tx=tx*tx*(3-2*tx); ty=ty*ty*(3-2*ty);
+   const ix1=(ix+1)%cells; const a=g[iy*gw+ix],b=g[iy*gw+ix1],c=g[(iy+1)*gw+ix],d=g[(iy+1)*gw+ix1];
+   paper[y*GW+x]+=amp*((a*(1-tx)+b*tx)*(1-ty)+(c*(1-tx)+d*tx)*ty);}
+ }
+ let mn=9,mx=-9; for(let i=0;i<N;i++){paper[i]+=0.12*R(); mn=Math.min(mn,paper[i]); mx=Math.max(mx,paper[i]);}
+ for(let i=0;i<N;i++){const p=(paper[i]-mn)/(mx-mn); paper[i]=p; const s=clamp((p-0.2)/0.65,0,1); perm[i]=0.12+0.88*s*s*(3-2*s);}
+ paperTile.set(paper); permTile.set(perm);
+})();
+
+// ---------- wet / dry layers ----------
+const W=new Float32Array(N), Pr=new Float32Array(N), Pg=new Float32Array(N), Pb=new Float32Array(N);
+const Dr=new Float32Array(N), Dg=new Float32Array(N), Db=new Float32Array(N);
+const dW=new Float32Array(N), dR=new Float32Array(N), dG=new Float32Array(N), dB=new Float32Array(N);
+const DW=0.11, ADV=0.85, DP=0.02, FRONT=0.2, EPS=1e-4, EVAP=0.0022, DRY=0.02, DEP=0.005, EDGE=0.02;
+let wetCount=0, GRAV=0;
+let BLEED_W=1, BLEED_E=1; // にじみ：水の量の倍率と、乾く速さの倍率（live.html だけ）
+
+function clearPaper(){for(const a of [W,Pr,Pg,Pb,Dr,Dg,Db])a.fill(0);}
+
+function deposit(cx,cy,r,water,pig,abs,L){
+ const sh=[];
+ for(let l=0;l<L;l++)sh.push({s:0.55+0.45*Math.random(),p1:Math.random()*6.28,p2:Math.random()*6.28,p3:Math.random()*6.28,
+   a1:0.1+0.16*Math.random(),a2:0.09*Math.random(),a3:0.05*Math.random(),ox:(Math.random()-0.5)*r*0.4,oy:(Math.random()-0.5)*r*0.4});
+ const R=Math.ceil(r*1.5)+2;
+ const x0=Math.max(0,Math.floor(cx-R)), x1=Math.min(GW-1,Math.ceil(cx+R)), y0=Math.max(0,Math.floor(cy-R)), y1=Math.min(GH-1,Math.ceil(cy+R));
+ const ar=pig*abs[0]/L, ag=pig*abs[1]/L, ab=pig*abs[2]/L, aw=water*BLEED_W/L;
+ for(let y=y0;y<=y1;y++)for(let x=x0;x<=x1;x++){
+  let w=0,p=0;
+  for(let l=0;l<L;l++){const S=sh[l];const dx=x-cx-S.ox, dy=y-cy-S.oy; const d=Math.sqrt(dx*dx+dy*dy); const th=Math.atan2(dy,dx);
+   const rl=r*S.s*(1+S.a1*Math.sin(3*th+S.p1)+S.a2*Math.sin(5*th+S.p2)+S.a3*Math.sin(9*th+S.p3));
+   if(d<rl){const e=Math.min(1,(rl-d)/1.4); w+=e; p+=e*(0.75+0.25*d/rl);}}
+  if(w>0){const i=y*GW+x; W[i]+=aw*w; Pr[i]+=ar*p; Pg[i]+=ag*p; Pb[i]+=ab*p;}
+ }
+}
+
+
+// 紙の傾き：下のセルへ流れやすくする（i が上、j が下）
+function flowG(i,j){
+ const wi=W[i], wj=W[j];
+ if(wi<EPS&&wj<EPS)return;
+ let f=DW*0.8*(wi-wj)+GRAV*wi, s,d,ws,wd;
+ if(f>=0){s=i;d=j;ws=wi;wd=wj}else{s=j;d=i;ws=wj;wd=wi;f=-f}
+ if(wd<EPS){ if(ws<FRONT*0.7)return; f*=perm[d]; }
+ else { const kr=(Pr[i]-Pr[j])*DP, kg=(Pg[i]-Pg[j])*DP, kb=(Pb[i]-Pb[j])*DP;
+  dR[i]-=kr;dR[j]+=kr;dG[i]-=kg;dG[j]+=kg;dB[i]-=kb;dB[j]+=kb; }
+ if(f<=0||ws<EPS)return; f=Math.min(f,ws*0.45);
+ dW[s]-=f; dW[d]+=f;
+ const c=ADV*f/ws, mr=Pr[s]*c, mg=Pg[s]*c, mb=Pb[s]*c;
+ dR[s]-=mr;dR[d]+=mr;dG[s]-=mg;dG[d]+=mg;dB[s]-=mb;dB[d]+=mb;
+}
+
+function flow(i,j,k){
+ const wi=W[i], wj=W[j];
+ if(wi<EPS&&wj<EPS)return;
+ let s,d,ws,wd;
+ if(wi>=wj){s=i;d=j;ws=wi;wd=wj}else{s=j;d=i;ws=wj;wd=wi}
+ let f=DW*k*(ws-wd);
+ if(wd<EPS){ if(ws<FRONT)return; f*=perm[d]; }
+ else { // both wet: gentle pigment diffusion
+  const kr=(Pr[i]-Pr[j])*DP, kg=(Pg[i]-Pg[j])*DP, kb=(Pb[i]-Pb[j])*DP;
+  dR[i]-=kr;dR[j]+=kr;dG[i]-=kg;dG[j]+=kg;dB[i]-=kb;dB[j]+=kb;
+ }
+ if(f<=0)return;
+ dW[s]-=f; dW[d]+=f;
+ const c=ADV*f/ws, mr=Pr[s]*c, mg=Pg[s]*c, mb=Pb[s]*c;
+ dR[s]-=mr;dR[d]+=mr;dG[s]-=mg;dG[d]+=mg;dB[s]-=mb;dB[d]+=mb;
+}
+
+function step(){
+ dW.fill(0);dR.fill(0);dG.fill(0);dB.fill(0);
+ for(let y=0;y<GH;y++){const row=y*GW;
+  for(let x=0;x<GW;x++){const i=row+x; if(x<GW-1)flow(i,i+1,1.5); if(y<GH-1){if(GRAV>0)flowG(i,i+GW);else flow(i,i+GW,0.8);}}}
+ let wet=0;
+ for(let y=0;y<GH;y++)for(let x=0;x<GW;x++){const i=y*GW+x;
+  let w=W[i]+dW[i]; let pr=Pr[i]+dR[i], pg=Pg[i]+dG[i], pb=Pb[i]+dB[i];
+  if(pr<0)pr=0;if(pg<0)pg=0;if(pb<0)pb=0;
+  if(w<=EPS&&pr+pg+pb<=1e-6){W[i]=0;Pr[i]=Pg[i]=Pb[i]=0;continue;}
+  let dep;
+  if(w>EPS){ w-=EVAP*BLEED_E*(1.3-0.6*paper[i]); }
+  if(w<=DRY){ w=0; dep=1; }
+  else{ wet++;
+   dep=DEP*(1.6-paper[i]);
+   if((x>0&&W[i-1]<EPS)||(x<GW-1&&W[i+1]<EPS)||(y>0&&W[i-GW]<EPS)||(y<GH-1&&W[i+GW]<EPS)) dep+=EDGE;
+  }
+  W[i]=w;
+  const r=pr*dep,g=pg*dep,b=pb*dep;
+  Dr[i]=Math.min(6,Dr[i]+r);Dg[i]=Math.min(6,Dg[i]+g);Db[i]=Math.min(6,Db[i]+b);
+  Pr[i]=pr-r;Pg[i]=pg-g;Pb[i]=pb-b;
+ }
+ wetCount=wet;
+}
+
+const paintCv=document.getElementById('paint'), pctx=paintCv.getContext('2d');
+const img=pctx.createImageData(GW,GH), data=img.data;
+function render(){
+ for(let i=0,k=0;i<N;i++,k+=4){
+  const sheen=W[i]>0?1-0.07*Math.min(W[i],1):1, g=(0.965+0.035*paper[i])*sheen;
+  data[k]=PAPER[0]*g*Math.exp(-(Dr[i]+Pr[i]));
+  data[k+1]=PAPER[1]*g*Math.exp(-(Dg[i]+Pg[i]));
+  data[k+2]=PAPER[2]*g*Math.exp(-(Db[i]+Pb[i]));
+  data[k+3]=255;
+ }
+ pctx.putImageData(img,0,0);
+}
+
+// ---------- score ----------
+const BPM=120, BEAT=60/BPM, BARS=8, BAR=4*BEAT;
+const TONIC=50, SCALE=[0,2,3,5,7,9,10], SPC=SCALE.map(v=>(TONIC+v)%12);
+const pc=m=>((m%12)+12)%12;
+function nearest(pcs,target,lo,hi){target=Math.round(target);for(let d=0;d<12;d++)for(const s of [target+d,target-d])if(s>=lo&&s<=hi&&pcs.includes(pc(s)))return s;return clamp(target,lo,hi);}
+function sstep(m,dir){let s=m+dir;while(!SPC.includes(pc(s)))s+=dir;return s;}
+function chordOf(deg){return [0,2,4].map(o=>{const d=deg+o;return pc(TONIC+SCALE[d%7]+12*Math.floor(d/7));});}
+
+function genScore(seed,density){
+ const R=mulberry32(seed), notes=[], P=x=>Math.min(1,x*density);
+ const add=(inst,t,dur,midi,vel)=>notes.push({inst,t,dur,midi,vel:clamp(vel,0.1,1)});
+ const peak=4+Math.floor(R()*3);
+ const I=[]; for(let b=0;b<BARS;b++)I[b]=clamp(1-Math.abs(b-peak)*0.22+(R()-0.5)*0.2,0.15,1); I[peak]=1;
+ const degs=[0]; for(let b=1;b<BARS;b++)degs[b]=[0,3,4,5,2,6,4][Math.floor(R()*7)]; degs[BARS-1]=0;
+ for(let b=0;b<BARS;b++){
+  const t0=b*BAR, ii=I[b], ch=chordOf(degs[b]);
+  // 高弦
+  if(R()<P(0.45+0.5*ii)){
+   if(ii>0.55&&R()<0.55){const n=(ii>0.85&&density>1.2)?16:8, d=BAR/n; let m=nearest(ch,70+R()*12,55,93), dir=R()<0.5?1:-1;
+    for(let k=0;k<n;k++){add(0,t0+k*d,d*0.95,m,0.45+0.45*ii);m=sstep(m,dir);if(m>90||m<62)dir*=-1;if(R()<0.15)dir*=-1;}}
+   else{let k=0;while(k<4){let len=[1,2,2,3,4][Math.floor(R()*5)];len=Math.min(len,4-k);add(0,t0+k*BEAT,len*BEAT*0.98,nearest(ch,64+R()*20,55,93),0.35+0.5*ii);k+=len;}}
+  }
+  // 低弦
+  if(R()<P(0.6+0.4*ii)){
+   if(ii>0.75){for(let k=0;k<4;k++)add(1,t0+k*BEAT,BEAT*0.9,nearest(k%2?[ch[2]]:[ch[0]],42,36,60),0.5+0.4*ii);}
+   else{add(1,t0,2*BEAT*0.98,nearest([ch[0]],40,36,60),0.35+0.5*ii);add(1,t0+2*BEAT,2*BEAT*0.98,nearest([ch[2]],45,36,62),0.3+0.5*ii);}
+  }
+  // 金管
+  if(ii>0.45&&R()<P(0.3+0.7*ii)){
+   const m1=nearest(ch,60+R()*8,48,77), m2=nearest(ch,m1+4,48,77);
+   if(ii>0.9){for(let k=0;k<3;k++)add(2,t0+k*BEAT/3,BEAT/3*0.8,m1,0.85);add(2,t0+BEAT,3*BEAT*0.97,m1,0.95);add(2,t0+BEAT,3*BEAT*0.97,m2,0.85);}
+   else{add(2,t0,4*BEAT*0.97,m1,0.4+0.5*ii);if(R()<0.6)add(2,t0,4*BEAT*0.97,m2,0.35+0.5*ii);}
+  }
+  // 木管
+  const fl=Math.round(ii*3*density*R()+(ii>0.6?1:0));
+  for(let f=0;f<fl;f++){const st=t0+Math.floor(R()*12)*BEAT/4, cnt=4+Math.floor(R()*5), d=BEAT/4; let m=nearest(ch,70+R()*8,60,96);
+   for(let k=0;k<cnt;k++){if(st+k*d>=t0+BAR)break;add(3,st+k*d,d*0.9,m,0.4+0.4*ii);m=nearest(ch,m+3,60,96);if(m>=94)m=nearest(ch,72,60,96);}}
+  if(R()<P(0.35))add(3,t0+2*BEAT,2*BEAT*0.95,nearest(ch,82,60,96),0.3+0.4*ii);
+  // 打楽器
+  const tm=nearest([ch[0],ch[2]],47,40,55);
+  if(R()<P(0.3+0.7*ii))add(4,t0,0.6,tm,0.4+0.6*ii);
+  if(ii>0.6&&R()<P(0.5))add(4,t0+2*BEAT,0.6,nearest([ch[2]],45,40,55),0.35+0.5*ii);
+  if(b===peak-1){for(let k=0;k<16;k++)add(4,t0+2*BEAT+k*BEAT/8,0.1,tm,0.2+0.7*k/15);}
+ }
+ notes.sort((a,b)=>a.t-b.t);
+ return {seed,notes,peak,pageDur:BARS*BAR};
+}
+
+
+// ---------- demo synth (offline) ----------
+function synthNote(c,dest,noiseBuf,n,when){
+ const s=INST[n.inst], f=440*Math.pow(2,(n.midi-69)/12), v=n.vel, end=when+n.dur;
+ const g=c.createGain(); g.gain.setValueAtTime(0,when); g.connect(dest);
+ if(s.kind==='str'){
+  const fl=c.createBiquadFilter(); fl.type='lowpass'; fl.frequency.value=s.cut; fl.Q.value=0.6; fl.connect(g);
+  const lfo=c.createOscillator(); lfo.frequency.value=5.2; const lgn=c.createGain(); lgn.gain.value=7; lfo.connect(lgn);
+  for(const det of [-7,7]){const o=c.createOscillator();o.type='sawtooth';o.frequency.value=f;o.detune.value=det;lgn.connect(o.detune);o.connect(fl);o.start(when);o.stop(end+0.4);}
+  lfo.start(when);lfo.stop(end+0.4);
+  const pk=0.05*v, a=Math.min(0.09,n.dur*0.5); g.gain.linearRampToValueAtTime(pk,when+a); g.gain.setValueAtTime(pk,Math.max(when+a,end)); g.gain.linearRampToValueAtTime(0,end+0.3);
+ }else if(s.kind==='brass'){
+  const fl=c.createBiquadFilter(); fl.type='lowpass'; fl.Q.value=1.5; fl.connect(g);
+  fl.frequency.setValueAtTime(400,when); fl.frequency.linearRampToValueAtTime(600+2400*v,when+0.06); fl.frequency.setTargetAtTime(900+1200*v,when+0.06,0.2);
+  const o=c.createOscillator(); o.type='sawtooth'; o.frequency.value=f; o.connect(fl); o.start(when); o.stop(end+0.25);
+  const pk=0.06*v, a=Math.min(0.03,n.dur*0.4); g.gain.linearRampToValueAtTime(pk,when+a); g.gain.setValueAtTime(pk,Math.max(when+a,end)); g.gain.linearRampToValueAtTime(0,end+0.15);
+ }else if(s.kind==='ww'){
+  const o=c.createOscillator(); o.type='triangle'; o.frequency.value=f; o.connect(g);
+  const lfo=c.createOscillator(); lfo.frequency.value=5.8; const lgn=c.createGain(); lgn.gain.value=10; lfo.connect(lgn); lgn.connect(o.detune);
+  o.start(when); o.stop(end+0.2); lfo.start(when); lfo.stop(end+0.2);
+  const pk=0.08*v, a=Math.min(0.03,n.dur*0.4); g.gain.linearRampToValueAtTime(pk,when+a); g.gain.setValueAtTime(pk,Math.max(when+a,end)); g.gain.linearRampToValueAtTime(0,end+0.12);
+ }else{
+  const o=c.createOscillator(); o.type='sine'; o.frequency.setValueAtTime(f*1.4,when); o.frequency.exponentialRampToValueAtTime(f,when+0.06); o.connect(g);
+  g.gain.linearRampToValueAtTime(0.35*v,when+0.005); g.gain.exponentialRampToValueAtTime(0.001,when+1.5); o.start(when); o.stop(when+1.6);
+  const ns=c.createBufferSource(); ns.buffer=noiseBuf; const bp=c.createBiquadFilter(); bp.type='bandpass'; bp.frequency.value=180; bp.Q.value=0.8;
+  const ng=c.createGain(); ng.gain.setValueAtTime(0.3*v,when); ng.gain.exponentialRampToValueAtTime(0.001,when+0.15);
+  ns.connect(bp); bp.connect(ng); ng.connect(dest); ns.start(when); ns.stop(when+0.2);
+ }
+}
+async function makeDemo(){
+ const sr=44100, len=Math.ceil(sr*33.5);
+ const c=new OfflineAudioContext(1,len,sr);
+ const comp=c.createDynamicsCompressor(); comp.threshold.value=-18; comp.ratio.value=6;
+ const m=c.createGain(); m.gain.value=0.8; m.connect(comp); comp.connect(c.destination);
+ const nb=c.createBuffer(1,Math.floor(sr*0.5),sr); const d=nb.getChannelData(0); for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1;
+ for(let p=0;p<2;p++){const sc=genScore(4000+p*17,1.2); for(const n of sc.notes)synthNote(c,m,nb,n,p*sc.pageDur+n.t);}
+ return await c.startRendering();
+}
+
+// ---------- analysis ----------
+function makeFFT(n){
+ const rev=new Uint32Array(n), bits=Math.log2(n);
+ for(let i=0;i<n;i++){let r=0,x=i;for(let b=0;b<bits;b++){r=(r<<1)|(x&1);x>>=1;}rev[i]=r;}
+ const cs=new Float64Array(n/2), sn=new Float64Array(n/2);
+ for(let i=0;i<n/2;i++){cs[i]=Math.cos(2*Math.PI*i/n);sn[i]=Math.sin(2*Math.PI*i/n);}
+ return (re,im)=>{
+  for(let i=0;i<n;i++){const j=rev[i];if(j>i){let t=re[i];re[i]=re[j];re[j]=t;t=im[i];im[i]=im[j];im[j]=t;}}
+  for(let size=2;size<=n;size<<=1){const half=size>>1, st=n/size;
+   for(let i=0;i<n;i+=size)for(let j=i,k=0;j<i+half;j++,k+=st){const l=j+half;
+    const tr=re[l]*cs[k]+im[l]*sn[k], ti=im[l]*cs[k]-re[l]*sn[k];
+    re[l]=re[j]-tr; im[l]=im[j]-ti; re[j]+=tr; im[j]+=ti;}}
+ };
+}
+async function analyze(buf,onProg){
+ const sr=buf.sampleRate, ch=buf.numberOfChannels, len=buf.length;
+ const mono=new Float32Array(len);
+ for(let c=0;c<ch;c++){const d=buf.getChannelData(c);for(let i=0;i<len;i++)mono[i]+=d[i]/ch;}
+ const NF=2048, HOP=512, frames=Math.max(1,Math.floor((len-NF)/HOP)+1);
+ const fft=makeFFT(NF), win=new Float64Array(NF); for(let i=0;i<NF;i++)win[i]=0.5-0.5*Math.cos(2*Math.PI*i/(NF-1));
+ const re=new Float64Array(NF), im=new Float64Array(NF), prev=new Float32Array(NF/2);
+ const bins=SUBS.map(b=>[Math.max(1,Math.round(b.lo*NF/sr)),Math.min(NF/2-1,Math.max(Math.round(b.lo*NF/sr)+1,Math.round(b.hi*NF/sr)))]);
+ const flux=SUBS.map(()=>new Float32Array(frames)), energy=SUBS.map(()=>new Float32Array(frames)), peak=SUBS.map(()=>new Uint16Array(frames)), total=new Float32Array(frames), cent=new Float32Array(frames);
+ for(let f=0;f<frames;f++){
+  const o=f*HOP; for(let i=0;i<NF;i++){re[i]=(mono[o+i]||0)*win[i];im[i]=0;}
+  fft(re,im);
+  let cw=0,cm=0;
+  for(let b=0;b<SUBS.length;b++){const [lo,hi]=bins[b]; let fl=0,en=0,mx=0,mb=lo;
+   for(let k=lo;k<=hi;k++){const m=Math.sqrt(re[k]*re[k]+im[k]*im[k]); const lm=Math.log(1+100*m); const df=lm-prev[k]; if(df>0)fl+=df; prev[k]=lm; en+=m*m; if(m>mx){mx=m;mb=k;} cw+=m*k; cm+=m;}
+   flux[b][f]=fl/(hi-lo+1); energy[b][f]=en; peak[b][f]=mb; total[f]+=en;}
+  cent[f]=cm>1e-9?Math.log2(Math.max(1,cw/cm*sr/NF)):0;
+  if(f%400===0){onProg(f/frames);await new Promise(r=>setTimeout(r,0));}
+ }
+ return {sr,NF,HOP,frames,flux,energy,peak,total,cent,duration:buf.duration,mode:MODE};
+}
+function pick(an,s){
+ const k=(2.6-1.4*s)*(MODE==='new'?NEW_K:1), fps=an.sr/an.HOP, Wn=10, out=[];
+ for(let b=0;b<SUBS.length;b++){
+  const fl=an.flux[b], en=an.energy[b], F=an.frames;
+  const ps=new Float64Array(F+1); for(let i=0;i<F;i++)ps[i+1]=ps[i]+fl[i];
+  const bm=ps[F]/Math.max(1,F);
+  const srt=Array.from(fl).sort((a,c)=>a-c); const p98=Math.max(1e-6,srt[Math.floor(srt.length*0.98)]||1e-6);
+  const se=Array.from(en).sort((a,c)=>a-c); const e95=se[Math.floor(se.length*0.95)]||0;
+  // Focus：ピントの帯域は小さな音も拾い（基準を下げる）、外側は大きな音だけを拾う（基準を上げる）
+  const fw=focusW(b), fin=FOCUS.s*fw, fout=FOCUS.s*(1-fw);
+  const kb=k*(1-0.45*fin+0.6*fout), floorB=NEW_FLOOR*(1-0.75*fin)*(1+3*fout);
+  const gap=Math.round((MODE==='new'?NEW_GAP*(1-0.5*fin):(SUBS[b].g===0?0.08:0.06))*fps); let last=-1e9;
+  for(let i=1;i<F-1;i++){
+   const a=Math.max(0,i-Wn), z=Math.min(F-1,i+Wn), lm=(ps[z+1]-ps[a])/(z-a+1);
+   if(fl[i]>kb*lm+0.15*bm&&fl[i]>=fl[i-1]&&fl[i]>fl[i+1]&&i-last>=gap){
+    const i1=Math.min(F-1,i+1), i2=Math.min(F-1,i+2); const e0=Math.max(en[i],en[i1],en[i2]); const tt=Math.max(an.total[i],an.total[i1],an.total[i2])+1e-12;
+    if(MODE==='current'){
+     // 今の版：高い音域ほど元々の音量が小さいので、全体との比較の基準を音域ごとに下げる
+     if(e0<0.03*e95||e0/tt<SUBS[b].thr)continue;
+    }else{
+     // New：曲全体の音量とは比べず、その音域の「普段の大きさ」と比べる（高い音も、その音域で目立てば拾う）
+     if(e0<floorB*e95||e0/tt<NEW_ABS)continue;
+    }
+    last=i;
+    let j=i+1; const mj=Math.min(F-1,i+Math.round(4*fps)); while(j<mj&&en[j]>0.12*e0)j++;
+    const f=peakOf(an,b,i);
+    out.push({band:b,group:SUBS[b].g,fi:i,e0,t:i*an.HOP/an.sr,dur:Math.max(0.05,(j-i)/fps),freq:f,vel:clamp(Math.sqrt(fl[i]/p98),0.15,1)});
+   }
+  }
+ }
+ out.sort((a,c)=>a.t-c.t); return out;
+}
+function peakOf(an,b,i){const bin=Math.max(an.peak[b][i],an.peak[b][Math.min(an.frames-1,i+1)]);return clamp(bin*an.sr/an.NF,SUBS[b].lo,SUBS[b].hi);}
+// ---------- Focus（耳を澄ませる帯域） ----------
+// 周波数 f（Hz）と強さ s（0〜1）。各 SUBS の中心がピントから何オクターブ離れているかで重み（0〜1）を決める。
+const FOCUS={f:3600,s:0}, FOCUS_SIGMA=0.8;
+function focusW(b){if(!FOCUS.s)return 0; const c=Math.sqrt(SUBS[b].lo*SUBS[b].hi), d=Math.log2(c/FOCUS.f)/FOCUS_SIGMA; return Math.exp(-0.5*d*d);}
+// 絵の具の倍率：ピントの帯域は大きく濃く、外側は小さく淡く
+function focusMul(b){const w=focusW(b), i=FOCUS.s*w, o=FOCUS.s*(1-w); return {r:1+0.6*i-0.35*o, pig:1+0.6*i-0.45*o, water:1+0.3*i-0.25*o};}
+let NEW_FLOOR=0.1, NEW_ABS=2e-6, NEW_K=1.4, NEW_GAP=0.15; // New の拾い方（Ballerinoで、今の版より少し多い密度になるよう調整）
+
+
+// ---------- 変化を加える変数（曲全体から時間ごとの値を作る） ----------
+function smooth(a,win){const n=a.length,ps=new Float64Array(n+1),o=new Float32Array(n);for(let i=0;i<n;i++)ps[i+1]=ps[i]+a[i];
+ for(let i=0;i<n;i++){const lo=Math.max(0,i-win),hi=Math.min(n-1,i+win);o[i]=(ps[hi+1]-ps[lo])/(hi-lo+1);}return o;}
+function pct(a,p){const s=Array.from(a).sort((x,y)=>x-y);return s[Math.min(s.length-1,Math.floor(s.length*p))]||0;}
+function norm(a,lo,hi){const o=new Float32Array(a.length),d=Math.max(1e-9,hi-lo);for(let i=0;i<a.length;i++)o[i]=clamp((a[i]-lo)/d,0,1);return o;}
+function features(an){
+ const F=an.frames, fps=an.sr/an.HOP, B=SUBS.length;
+ // 和音の厚み：同時に鳴っている音域の数
+ const e95=an.energy.map(e=>pct(e,0.95)), cnt=new Float32Array(F);
+ for(let i=0;i<F;i++){let c=0;for(let b=0;b<B;b++)if(an.energy[b][i]>0.12*e95[b])c++;cnt[i]=Math.max(0,c-1)/(B-1);}
+ const thick=smooth(cnt,Math.round(0.3*fps));
+ // 音色の明るさ：周波数の重心（曲の中での相対値）
+ const cs=smooth(an.cent,Math.round(0.4*fps)), bright=norm(cs,pct(cs,0.08),pct(cs,0.92));
+ // リズムの強さ：全音域の立ち上がりの強さを1.5秒ほどならしたもの
+ const on=new Float32Array(F); for(let b=0;b<B;b++){const p=Math.max(1e-6,pct(an.flux[b],0.98));for(let i=0;i<F;i++)on[i]+=Math.min(1,an.flux[b][i]/p)/B;}
+ const rs=smooth(on,Math.round(0.75*fps)), rhythm=norm(rs,pct(rs,0.05),pct(rs,0.95));
+ return {fps,thick,bright,rhythm};
+}
+const featAt=(arr,t)=>{if(!feat)return 0;const i=Math.floor(t*feat.fps);return arr[clamp(i,0,arr.length-1)];};
+let feat=null;
+
+
+// ---------- scrolling paper ----------
+// 紙は右から左へ流れ続ける。再生ヘッドは左寄りに固定。
+const VIS=GW-2, FLO=30, FHI=12000, MYT=8, MYB=8;
+let SPAN=16, cps=VIS/SPAN, PHX=Math.round(VIS*0.5), scrollCol=0;
+const gyF=f=>GH-MYB-(Math.log2(clamp(f,FLO,FHI)/FLO)/Math.log2(FHI/FLO))*(GH-MYT-MYB);
+const gxT=t=>t*cps-scrollCol;
+const tileIdx=(x,y)=>y*GW+(((scrollCol+x)%GW)+GW)%GW;
+function refillPaper(){for(let y=0;y<GH;y++)for(let x=0;x<GW;x++){const i=y*GW+x,s=tileIdx(x,y);paper[i]=paperTile[s];perm[i]=permTile[s];}}
+function scrollTo(target){
+ const k=target-scrollCol; if(k===0)return;
+ if(k<0)return;
+ if(k>=GW){clearPaper();scrollCol=target;refillPaper();return;}
+ const arrs=[W,Pr,Pg,Pb,Dr,Dg,Db,paper,perm];
+ for(let y=0;y<GH;y++){const row=y*GW; for(const a of arrs){a.copyWithin(row,row+k,row+GW);}
+  for(let x=GW-k;x<GW;x++){const i=row+x; W[i]=Pr[i]=Pg[i]=Pb[i]=Dr[i]=Dg[i]=Db[i]=0;}}
+ scrollCol=target;
+ for(let y=0;y<GH;y++)for(let x=GW-k;x<GW;x++){const i=y*GW+x,s=tileIdx(x,y);paper[i]=paperTile[s];perm[i]=permTile[s];}
+}
+function targetScroll(t){return Math.floor(t*cps)-PHX;}
+
+// ---------- color adjustment ----------
+const adj={all:{h:0,s:100,l:0},bands:BANDS.map(()=>({h:0,s:100,l:0}))};
+function rgb2hsl([r,g,b]){const mx=Math.max(r,g,b),mn=Math.min(r,g,b),l=(mx+mn)/2;let h=0,s=0;
+ if(mx!==mn){const d=mx-mn;s=l>0.5?d/(2-mx-mn):d/(mx+mn);h=mx===r?(g-b)/d+(g<b?6:0):mx===g?(b-r)/d+2:(r-g)/d+4;h*=60;}return [h,s,l];}
+function hsl2rgb(h,s,l){const c=(1-Math.abs(2*l-1))*s,x=c*(1-Math.abs((h/60)%2-1)),m=l-c/2;
+ const [r,g,b]=h<60?[c,x,0]:h<120?[x,c,0]:h<180?[0,c,x]:h<240?[0,x,c]:h<300?[x,0,c]:[c,0,x];return [r+m,g+m,b+m];}
+function applyColors(keepLegend){
+ BANDS.forEach((b,i)=>{let [h,s,l]=rgb2hsl(b.base);const a=adj.bands[i],g=adj.all;
+  h=((h+a.h+g.h)%360+360)%360; s=clamp(s*(a.s/100)*(g.s/100),0,1); l=clamp(l+(a.l+g.l)/100,0.04,0.96);
+  b.color=hsl2rgb(h,s,l); b.abs=b.color.map(c=>-Math.log(Math.max(0.03,c)));});
+ updateSubColors();
+ if(keepLegend){lg.querySelectorAll('.blot').forEach((el,i)=>{const c=BANDS[i].abs.map((a,k)=>Math.round(PAPER[k]*Math.exp(-0.9*a)));el.style.background=`rgb(${c})`;});}
+ else renderLegend();
+ buildOverview(); drawOverview();
+}
+
+// ---------- state ----------
+let ctx=null, out=null, buffer=null, an=null, notes=[], srcNode=null, playing=false, startCtx=0, startPos=0, pos=0;
+let vIdx=0, active=[], busy=false, title='Sample';
+const noteTimes=[];
+// iPhone / iPad では、音をふつうの音声プレーヤー（<audio>）で鳴らす。
+// Web Audio の音は画面収録に入らないことがあるが、音声プレーヤーの音は音楽の再生と同じ扱いで収録される。
+const isIOS=/iP(hone|ad|od)/.test(navigator.userAgent)||(/Macintosh/.test(navigator.userAgent)&&navigator.maxTouchPoints>1);
+const elemMode=isIOS||!!window.__forceElementOut;
+const aEl=document.createElement('audio'); aEl.setAttribute('playsinline',''); aEl.preload='auto'; aEl.hidden=true; document.body.appendChild(aEl);
+let aUrl=null, aT=0, aPerf=0, aPrev=0;
+function ensureCtx(){
+ if(ctx)return;
+ if(elemMode){
+  // iPhone では音を出す Web Audio を一切作らない（作るだけで画面収録の音が入らなくなる）。
+  // 音声の読み取り（解析）には、音を出さない計算専用の仕組みだけを使う。
+  const O=window.OfflineAudioContext||window.webkitOfflineAudioContext; ctx=new O(2,44100,44100); return;
+ }
+ ctx=new (window.AudioContext||window.webkitAudioContext)(); out=ctx.createGain(); out.gain.value=0.9; out.connect(ctx.destination);
+}
+function setOutputBlob(blob){ if(!elemMode)return; if(aUrl)URL.revokeObjectURL(aUrl); aUrl=URL.createObjectURL(blob); aEl.src=aUrl; aEl.load(); aT=0; aPrev=0; }
+// つないだ音を WAV ファイルにする（音声プレーヤーで鳴らすため）
+function encodeWav(buf){
+ const ch=Math.min(2,buf.numberOfChannels), sr=buf.sampleRate, n=buf.length, bytes=n*ch*2, ab=new ArrayBuffer(44+bytes), v=new DataView(ab);
+ const w=(o,str)=>{for(let i=0;i<str.length;i++)v.setUint8(o+i,str.charCodeAt(i));};
+ w(0,'RIFF');v.setUint32(4,36+bytes,true);w(8,'WAVE');w(12,'fmt ');v.setUint32(16,16,true);v.setUint16(20,1,true);v.setUint16(22,ch,true);
+ v.setUint32(24,sr,true);v.setUint32(28,sr*ch*2,true);v.setUint16(32,ch*2,true);v.setUint16(34,16,true);w(36,'data');v.setUint32(40,bytes,true);
+ const d=[...Array(ch)].map((_,c)=>buf.getChannelData(c)); let o=44;
+ for(let i=0;i<n;i++)for(let c=0;c<ch;c++){const x=Math.max(-1,Math.min(1,d[c][i]));v.setInt16(o,x<0?x*0x8000:x*0x7FFF,true);o+=2;}
+ return new Blob([ab],{type:'audio/wav'});
+}
+// 音声プレーヤーの時刻は飛び飛びに進むので、その間は経過時間で補う
+// 時計は端末のタイマーでなめらかに進め、音声プレーヤーの位置は「ずれの補正」にだけ使う。
+// iPhone の音声プレーヤーは位置を数十〜数百ミリ秒おきにしか更新しないので、そのまま使うと紙がカクつく。
+let sBase=0, sPerf=0, sLastCt=-1, sLive=false;
+function elemTime(){
+ const now=performance.now(), ct=aEl.currentTime;
+ if(aEl.paused||aEl.seeking||!sLive){sBase=ct;sPerf=now;sLastCt=ct;sLive=!aEl.paused&&!aEl.seeking;return ct;}
+ let est=sBase+(now-sPerf)/1000;
+ if(ct!==sLastCt){
+  sLastCt=ct; const err=ct-est;
+  if(Math.abs(err)>0.35){sBase=ct;sPerf=now;est=ct;}      // 大きくずれた（頭に戻った・詰まった）ときだけ合わせ直す
+  else{sBase+=err*0.2; est+=err*0.2;}                       // 小さなずれは少しずつ詰める
+ }
+ return est;
+}
+let outro=null; // 曲の終わり後、色のついた紙が左へ流れ切るまでの演出
+const outroLen=()=>(PHX+14)/cps;
+let cycOff=0, nextSrc=null, nextStartCtx=0; // ループで何周したか（紙の上の位置をずらし続けるため）
+const clock=()=>playing?(elemMode?elemTime():startPos+ctx.currentTime-startCtx):outro!==null?buffer.duration+(performance.now()-outro)/1000:pos;
+const fmt=t=>{t=Math.max(0,t);return `${Math.floor(t/60)}:${String(Math.floor(t%60)).padStart(2,'0')}`;};
+function lowerBound(t){let a=0,b=notes.length;while(a<b){const m=(a+b)>>1;if(notes[m].t<t)a=m+1;else b=m;}return a;}
+
+function stopSource(){if(elemMode)aEl.pause(); for(const n of [srcNode,nextSrc]){if(n){n.onended=null;try{n.stop();}catch(e){}n.disconnect();}} srcNode=null; nextSrc=null;}
+// ---------- video playlist ----------
+// 音は全クリップを1本につないで途切れずに鳴らし、それを全体の時計にする。
+// 映像は音を消して、その時計に後から付いていく（映像が一瞬遅れても、音と紙は止まらない）。
+const vidbox=document.getElementById('vidbox'), deck=document.getElementById('deck');
+// 固定したタイトルの高さを、その下に固定する映像と紙の位置に使う
+{const hd=document.querySelector('header'); const setHH=()=>document.documentElement.style.setProperty('--hh',hd.offsetHeight+'px'); setHH(); new ResizeObserver(setHH).observe(hd);}
+const vidToggle=document.getElementById('vidToggle'), vidToggleWrap=document.getElementById('vidToggleWrap'), loopEl=document.getElementById('loopEl');
+let players=[document.getElementById('vidA'),document.getElementById('vidB')], curEl=players[0], nextEl=players[1];
+let clips=[], ci=0, hasVideo=false, useMedia=false, lastHardSeek=0, lastRateSet=0;
+const isVideoFile=f=>/^video\//.test(f.type)||/\.(mov|mp4|m4v)$/i.test(f.name);
+function clearPlayers(){for(const el of players){el.pause();el.removeAttribute('src');el.load();el.dataset.clip='';el.playbackRate=1;}}
+function setClips(list){
+ vidbox.style.opacity=''; clearPlayers();
+ for(const c of clips)if(c.url)URL.revokeObjectURL(c.url);
+ clips=list||[]; ci=0; useMedia=clips.length>0;
+ hasVideo=clips.some(c=>c.isVideo); vidToggleWrap.hidden=!hasVideo; showVideo();
+ if(useMedia){loadInto(curEl,0); warmNext();}
+}
+function loadInto(el,i){
+ if(el.dataset.clip!==String(i)){el.muted=true; el.src=clips[i].url; el.dataset.clip=String(i); el.load();}
+}
+function showVideo(){const on=hasVideo&&vidToggle.checked; vidbox.hidden=!on; deck.classList.toggle('vid-on',on);}
+function clipAt(t){let i=0;while(i<clips.length-1&&t>=clips[i+1].start)i++;return i;}
+function nextIndex(i){return i+1<clips.length?i+1:(loopEl.checked&&clips.length>1?0:-1);}
+// 次のクリップを、音を消した状態で一度動かしてから頭で止めておく（iPhone はこうしないと読み込みを始めない）
+function warmNext(){
+ const ni=nextIndex(ci); if(ni<0)return;
+ if(nextEl.dataset.clip===String(ni)&&nextEl.dataset.warm==='1')return;
+ loadInto(nextEl,ni); nextEl.dataset.warm='1';
+ const pr=nextEl.play(); const park=()=>{nextEl.pause(); try{nextEl.currentTime=0;}catch(e){}};
+ if(pr&&pr.then)pr.then(park).catch(park); else park();
+}
+// 映像を時計に合わせる。大きくずれたときだけ位置を飛ばし、小さなずれは再生速度でゆっくり詰める
+function videoFollow(t,force){
+ if(!useMedia||!buffer)return;
+ t=Math.min(Math.max(t,0),buffer.duration-0.01);
+ const i=clipAt(t), local=t-clips[i].start;
+ if(i!==ci||curEl.dataset.clip!==String(i)){
+  const prev=curEl;
+  if(nextEl.dataset.clip===String(i)){[curEl,nextEl]=[nextEl,curEl];} else loadInto(curEl,i);
+  ci=i; if(prev!==curEl){prev.pause();} nextEl.dataset.warm='';
+  for(const el of players){el.hidden=(el!==curEl); el.playbackRate=1;}
+  force=true;
+ }
+ // 映像の再生速度は常に1.0倍のまま（iPhone は速度を少しでも変えるとコマが乱れてカクつく）。
+ // 大きくずれたときだけ位置を合わせ直し、それも2秒に1回までにする。
+ const now=performance.now(), drift=curEl.currentTime-local;
+ if(!curEl.seeking&&((force&&Math.abs(drift)>0.12)||(Math.abs(drift)>0.5&&now-lastHardSeek>2000))){
+  try{curEl.currentTime=local;}catch(e){} lastHardSeek=now;
+ }
+ if(curEl.playbackRate!==1)curEl.playbackRate=1;
+ if(playing&&curEl.paused&&!curEl.ended)curEl.play().catch(()=>{});
+ if(!playing&&!curEl.paused)curEl.pause();
+ if(playing)warmNext();
+}
+// ループで頭に戻るとき：紙はそのまま流し続け、音の位置だけを最初に戻す
+function wrapCycle(){cycOff+=buffer.duration; vIdx=0; active=[];}
+vidToggle.addEventListener('change',showVideo);
+// 映像の縦横比を枠に渡す（枠を映像と同じ形にして、外側に黒い帯を出さない）
+for(const v of players)v.addEventListener('loadedmetadata',()=>{if(v.videoWidth&&v.videoHeight)v.style.setProperty('--ar',(v.videoWidth/v.videoHeight).toFixed(4));});
+loopEl.addEventListener('change',()=>{if(useMedia){nextEl.dataset.warm='';warmNext();} drawOverview();});
+
+
+function play(){
+ if(!buffer||busy)return; outro=null; if(exportResult){exportResult=null; syncExportBtn();}
+ if(pos>=buffer.duration-0.05){pos=0;seek(0);}
+ ensureCtx();
+ if(elemMode){
+  try{aEl.currentTime=pos;}catch(e){} aT=pos; aPrev=pos; aPerf=performance.now(); sLive=false; aEl.loop=loopEl.checked;
+  const pr=aEl.play(); if(pr&&pr.catch)pr.catch(()=>{}); playing=true;
+ }else{
+  if(ctx.state==='suspended')ctx.resume();
+  srcNode=ctx.createBufferSource(); srcNode.buffer=buffer; srcNode.connect(out);
+  startCtx=ctx.currentTime; startPos=pos; srcNode.start(0,pos); playing=true;
+ }
+ cta.hidden=true; playBtn.textContent='Pause';
+ videoFollow(pos,true);
+}
+function pause(){outro=null;pos=Math.min(clock(),buffer?buffer.duration:0);playing=false;stopSource();if(useMedia)for(const el of players)el.pause();playBtn.textContent='Play';}
+// アプリが裏に回ったら自動で一時停止する（戻ってきても自動では再開しない）
+function pauseIfHidden(){if(document.hidden&&playing)pause();}
+document.addEventListener('visibilitychange',pauseIfHidden);
+window.addEventListener('pagehide',()=>{if(playing)pause();});
+function seek(t){
+ outro=null; const was=playing; if(elemMode)aEl.pause(); if(playing){playing=false;stopSource();}
+ if(useMedia)for(const el of players)el.pause();
+ pos=clamp(t,0,buffer?buffer.duration:0); vIdx=lowerBound(pos); active=[]; cycOff=0;
+ clearPaper(); scrollCol=targetScroll(pos); refillPaper(); drawOverview();
+ if(useMedia){for(const el of players)el.pause(); videoFollow(pos,true);}
+ if(was)play(); else playBtn.textContent='Play';
+}
+
+async function loadBuffer(buf,name){
+ busy=true; if(playing)pause(); buffer=buf; title=name; playBtn.disabled=true; busyEl.hidden=false;
+ metaEl.textContent=`Analysing ${name}`;
+ anCache={}; an=await analyze(buf,p=>{busyEl.textContent=`Analysing ${Math.round(p*100)}%`;}); anCache[MODE]=an;
+ notes=pick(an,+sensEl.value); feat=features(an);
+ busy=false; busyEl.hidden=true; playBtn.disabled=false; cta.hidden=false;
+ updateMeta(); buildOverview(); seek(0); syncExportBtn();
+}
+function updateMeta(){metaEl.innerHTML=`<b>${escapeHtml(title)}</b> <br>${fmt(buffer.duration)} · 5 bands`;}
+function escapeHtml(s){return s.replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+// 動画（mov/mp4）から AAC 音声を取り出し、ADTS 形式（.aac）に組み直す
+function videoToAdts(MP4Box, ab){
+ return new Promise((resolve,reject)=>{
+  const f=MP4Box.createFile(); let track=null, chunks=[], total=0, cfg=null, expected=0, got=0;
+  f.onError=e=>reject(new Error('demux:'+e));
+  f.onReady=info=>{
+   track=info.audioTracks&&info.audioTracks[0];
+   if(!track||!/^mp4a/.test(track.codec)){reject(new Error('no aac track'));return;}
+   // AAC の設定（AudioSpecificConfig）。mov では esds が wave 箱の中にあるので、見つからなければ生のバイト列から探す
+   let dsi=null;
+   try{const e=f.getTrackById(track.id).mdia.minf.stbl.stsd.entries[0]; dsi=e.esds.esd.descs[0].descs[0].data;}catch(_){}
+   if(!dsi)dsi=findAsc(new Uint8Array(ab));
+   const SR=[96000,88200,64000,48000,44100,32000,24000,22050,16000,12000,11025,8000,7350];
+   if(dsi&&dsi.length>=2){const aot=dsi[0]>>3, sfi=((dsi[0]&7)<<1)|(dsi[1]>>7), ch=(dsi[1]>>3)&15;
+    cfg={profile:Math.max(1,Math.min(4,aot))-1,sfi,ch:ch||2};}
+   else{const sr=track.audio&&track.audio.sample_rate, i=SR.indexOf(sr);
+    if(i<0){reject(new Error('unknown rate'));return;} cfg={profile:1,sfi:i,ch:(track.audio&&track.audio.channel_count)||2};}
+   expected=track.nb_samples;
+   f.setExtractionOptions(track.id,null,{nbSamples:expected});
+   f.start();
+  };
+  f.onSamples=(id,user,samples)=>{
+   for(const s of samples){const len=s.data.length+7, h=new Uint8Array(7);
+    h[0]=0xFF;h[1]=0xF1;h[2]=(cfg.profile<<6)|(cfg.sfi<<2)|((cfg.ch>>2)&1);
+    h[3]=((cfg.ch&3)<<6)|((len>>11)&3);h[4]=(len>>3)&0xFF;h[5]=((len&7)<<5)|0x1F;h[6]=0xFC;
+    chunks.push(h,s.data);total+=len;}
+   got+=samples.length;
+   if(got>=expected){const out=new Uint8Array(total);let o=0;for(const c of chunks){out.set(c,o);o+=c.length;}resolve(out.buffer);}
+  };
+  const buf=ab.slice(0); buf.fileStart=0; f.appendBuffer(buf); f.flush();
+ });
+}
+function findAsc(b){
+ // 'esds' 箱を探し、ES記述子の中の DecoderSpecificInfo（タグ5）を取り出す
+ for(let i=4;i<b.length-8;i++){
+  if(b[i]!==0x65||b[i+1]!==0x73||b[i+2]!==0x64||b[i+3]!==0x73)continue;
+  const end=Math.min(b.length,i-4+((b[i-4]<<24|b[i-3]<<16|b[i-2]<<8|b[i-1])>>>0));
+  for(let j=i+8;j<end-2;j++){if(b[j]!==5)continue; let k=j+1,len=0,n=0; while(n<4&&k<end){const v=b[k++];len=(len<<7)|(v&127);n++;if(!(v&128))break;}
+   if(len>=2&&len<=8&&k+len<=end){const a=b.slice(k,k+len);const aot=a[0]>>3; if(aot>=1&&aot<=5)return a;}}
+ }
+ return null;
+}
+// 動画から音声を取り出すための部品は、必要になったときだけ読み込む
+let mp4boxP=null;
+function loadMp4box(){
+ if(window.MP4Box)return Promise.resolve(window.MP4Box);
+ if(!mp4boxP)mp4boxP=new Promise((res,rej)=>{const sc=document.createElement('script');
+  // 外部の配信元に頼らず、リポジトリに同梱した版（mp4box 0.5.2、BSD-3-Clause）を使う
+  sc.src='lib/mp4box.all.min.js';
+  sc.onload=()=>window.MP4Box?res(window.MP4Box):rej(new Error('mp4box'));sc.onerror=()=>{mp4boxP=null;rej(new Error('mp4box'));};document.head.appendChild(sc);});
+ return mp4boxP;
+}
+function decode(ab){
+ // Safari の古い版にも対応するため、コールバック形式でも受ける
+ return new Promise((res,rej)=>{let done=false;
+  const p=ctx.decodeAudioData(ab,b=>{if(!done){done=true;res(b);}},e=>{if(!done){done=true;rej(e||new Error('decode'));}});
+  if(p&&p.then)p.then(b=>{if(!done){done=true;res(b);}},e=>{if(!done){done=true;rej(e);}});});
+}
+function showError(msg){busy=false;busyEl.hidden=false;busyEl.textContent=msg;metaEl.textContent=msg;if(buffer)playBtn.disabled=false;}
+async function decodeFile(file,label){
+ let ab;
+ try{ab=await file.arrayBuffer();}catch(e){throw new Error('This file could not be read.');}
+ try{return await decode(ab);}
+ catch(e){
+  if(!isVideoFile(file)&&!/\.m4a$/i.test(file.name))throw new Error('This file could not be decoded. Try MP3, WAV, M4A, MOV or MP4.');
+  try{busyEl.textContent=`Extracting audio ${label}`; const M=await loadMp4box(); const adts=await videoToAdts(M,await file.arrayBuffer()); return await decode(adts);}
+  catch(e2){throw new Error(e2&&e2.message==='mp4box'?'Could not load the video reader. Check your connection.':'No usable audio was found in this video.');}
+ }
+}
+// ---------- 大きな動画を1080pに作り直す ----------
+// 4Kのままだと、iPhoneは映像の展開が重く、再生の出だしで止まる（2026-10-20のテストで確認）。
+// 長い辺が1920pxを超える動画は、読み込みのときに端末の中で1080pに作り直す。作り直せないときは元の動画のまま使う。
+const SHRINK_LONG=1920;
+let muxerP=null;
+function loadMuxer(){
+ if(window.Mp4Muxer)return Promise.resolve(window.Mp4Muxer);
+ if(!muxerP)muxerP=new Promise((res,rej)=>{const sc=document.createElement('script');
+  // 外部の配信元に頼らず、リポジトリに同梱した版（mp4-muxer 5.2.1、MIT）を使う
+  sc.src='lib/mp4-muxer.js';
+  sc.onload=()=>window.Mp4Muxer?res(window.Mp4Muxer):rej(new Error('muxer'));sc.onerror=()=>{muxerP=null;rej(new Error('muxer'));};document.head.appendChild(sc);});
+ return muxerP;
+}
+function trackRotation(m){if(!m)return 0; let d=Math.round(Math.atan2(m[1]/65536,m[0]/65536)*180/Math.PI); d=((d%360)+360)%360;
+ return [0,90,180,270].reduce((p,c)=>Math.abs(c-d)<Math.abs(p-d)?c:p,0);}
+async function shrinkVideo(file,label){
+ if(!('VideoDecoder' in window)||!('VideoEncoder' in window)||!('VideoFrame' in window))return null;
+ const wait=ms=>new Promise(r=>setTimeout(r,ms));
+ let decoder=null, encoder=null;
+ try{
+  const [M,X]=await Promise.all([loadMp4box(),loadMuxer()]);
+  const mp4=M.createFile(); let track=null; const queue=[];
+  mp4.onReady=inf=>{track=inf.videoTracks[0]||null; if(track){mp4.setExtractionOptions(track.id,null,{nbSamples:30}); mp4.start();}};
+  mp4.onSamples=(id,u,samples)=>{for(const x of samples)queue.push(x);};
+  let offset=0; const CH=8<<20;
+  const feed=async()=>{if(offset>=file.size)return false; const ab=await file.slice(offset,offset+CH).arrayBuffer(); ab.fileStart=offset;
+   const next=mp4.appendBuffer(ab); offset=(typeof next==='number'&&next>offset)?next:offset+ab.byteLength; return true;};
+  while(!track){if(!(await feed()))return null;}
+  const sw=track.video.width, sh=track.video.height;
+  if(Math.max(sw,sh)<=SHRINK_LONG)return null; // 1080p以下はそのまま
+  const vdur=(track.movie_duration/track.movie_timescale)||(track.duration/track.timescale);
+  const fps=Math.max(1,Math.min(120,Math.round(track.nb_samples/vdur)));
+  const rot=trackRotation(track.matrix), sc=SHRINK_LONG/Math.max(sw,sh);
+  const dw=Math.round(sw*sc/2)*2, dh=Math.round(sh*sc/2)*2, ow=(rot%180)?dh:dw, oh=(rot%180)?dw:dh;
+  let desc; const trak=mp4.getTrackById(track.id);
+  for(const e of trak.mdia.minf.stbl.stsd.entries){const box=e.avcC||e.hvcC||e.vpcC||e.av1C;
+   if(box){const ds=new DataStream(undefined,0,DataStream.BIG_ENDIAN); box.write(ds); desc=new Uint8Array(ds.buffer,8); break;}}
+  const dcfg={codec:track.codec,codedWidth:sw,codedHeight:sh,description:desc};
+  const ds=await VideoDecoder.isConfigSupported(dcfg); if(!ds||!ds.supported)return null;
+  const br=Math.round(ow*oh*fps*0.15); let ecfg=null, mux='avc';
+  for(const c of [['avc1.64002a','avc'],['avc1.640028','avc'],['avc1.4d0028','avc'],['vp09.00.40.08','vp9']]){
+   const cfg={codec:c[0],width:ow,height:oh,bitrate:br,framerate:fps,latencyMode:'quality'}; if(c[1]==='avc')cfg.avc={format:'avc'};
+   try{const r=await VideoEncoder.isConfigSupported(cfg); if(r.supported){ecfg=cfg; mux=c[1]; break;}}catch(e){}}
+  if(!ecfg)return null;
+  const muxer=new X.Muxer({target:new X.ArrayBufferTarget(),video:{codec:mux,width:ow,height:oh,frameRate:fps},fastStart:'in-memory',firstTimestampBehavior:'offset'});
+  const cv=(typeof OffscreenCanvas!=='undefined')?new OffscreenCanvas(ow,oh):Object.assign(document.createElement('canvas'),{width:ow,height:oh});
+  const g=cv.getContext('2d');
+  let err=null, nIn=0, nOut=0;
+  encoder=new VideoEncoder({output:(chunk,meta)=>muxer.addVideoChunk(chunk,meta),error:e=>{err=e;}});
+  encoder.configure(ecfg);
+  decoder=new VideoDecoder({output:frame=>{
+    g.save(); g.clearRect(0,0,ow,oh);
+    if(rot===90){g.translate(ow,0);g.rotate(Math.PI/2);} else if(rot===180){g.translate(ow,oh);g.rotate(Math.PI);} else if(rot===270){g.translate(0,oh);g.rotate(-Math.PI/2);}
+    g.drawImage(frame,0,0,dw,dh); g.restore();
+    const nf=new VideoFrame(cv,{timestamp:frame.timestamp,duration:frame.duration||undefined}); frame.close();
+    encoder.encode(nf,{keyFrame:nOut%fps===0}); nf.close(); nOut++; // 1秒ごとに区切りの絵を入れ、位置合わせを軽くする
+   },error:e=>{err=e;}});
+  decoder.configure(dcfg);
+  const total=track.nb_samples, tag=label?` ${label}`:'';
+  busyEl.textContent=`Preparing video${tag}`;
+  const pump=async()=>{
+   while(queue.length){
+    if(err)throw err;
+    const w0=performance.now();
+    while(decoder.decodeQueueSize>6||encoder.encodeQueueSize>6){await wait(1); if(err)throw err; if(performance.now()-w0>20000)throw new Error('stalled');}
+    const x=queue.shift();
+    decoder.decode(new EncodedVideoChunk({type:x.is_sync?'key':'delta',timestamp:Math.round(1e6*x.cts/x.timescale),duration:Math.round(1e6*x.duration/x.timescale),data:x.data}));
+    nIn++;
+    if(nIn%15===0){mp4.releaseUsedSamples(track.id,x.number); busyEl.textContent=`Preparing video${tag} ${Math.round(nIn/total*100)}%`; await wait(0);}
+   }
+  };
+  while(true){await pump(); if(nIn>=total)break; if(!(await feed())){mp4.flush(); await pump(); break;}}
+  await decoder.flush(); await encoder.flush(); decoder.close(); encoder.close(); decoder=encoder=null;
+  if(err||nOut===0)throw err||new Error('empty');
+  muxer.finalize();
+  return new Blob([muxer.target.buffer],{type:'video/mp4'});
+ }catch(e){
+  console.warn('SIGHON: video was not resized, using the original',e);
+  try{if(decoder&&decoder.state!=='closed')decoder.close();}catch(_){} try{if(encoder&&encoder.state!=='closed')encoder.close();}catch(_){}
+  return null;
+ }
+}
+async function loadFiles(files){
+ files=Array.from(files||[]).filter(Boolean); if(!files.length)return;
+ ensureCtx(); cta.innerHTML='Play<small>SOUND ON</small>';
+ busy=true; if(playing)pause(); busyEl.hidden=false;
+ const parts=[], skipped=[]; let lastErr=null;
+ // 複数選んだときは、音が読めないクリップ（編集で音を消した動画など）だけを外して、残りを読み込む
+ for(let i=0;i<files.length;i++){
+  const f=files[i], label=files.length>1?`${i+1} / ${files.length}`:'';
+  busyEl.textContent=files.length>1?`Reading clip ${label}`:'Reading file'; metaEl.textContent=`Reading ${f.name}`;
+  let buf;
+  try{buf=await decodeFile(f,label);}catch(e){lastErr=e; skipped.push(f.name); continue;}
+  const small=isVideoFile(f)?await shrinkVideo(f,label):null; // 映像だけを作り直す。音は元の動画から取り出したものを使う
+  parts.push({file:f,video:small||f,buf,dur:buf.duration});
+ }
+ if(!parts.length){showError(files.length>1?'None of these clips have usable audio.':((lastErr&&lastErr.message)||'This file could not be loaded.'));return;}
+ const media=parts.some(p=>isVideoFile(p.file));
+ const name=parts.length>1?`${parts.length} clips`:parts[0].file.name;
+ // 全クリップの音を、継ぎ目なく1本につなぐ
+ let buf=parts[0].buf;
+ if(parts.length>1){const ch=Math.max(...parts.map(p=>p.buf.numberOfChannels)), rate=parts[0].buf.sampleRate;
+  const len=parts.reduce((a,p)=>a+p.buf.length,0); buf=ctx.createBuffer(ch,len,rate); let o=0;
+  for(const p of parts){for(let c=0;c<ch;c++)buf.getChannelData(c).set(p.buf.getChannelData(Math.min(c,p.buf.numberOfChannels-1)),o); o+=p.buf.length;}}
+ let list=null;
+ if(media){list=[]; let start=0; for(const p of parts){list.push({url:URL.createObjectURL(p.video),blob:p.video,start,dur:p.buf.length/p.buf.sampleRate,isVideo:isVideoFile(p.file)}); start+=p.buf.length/p.buf.sampleRate;}}
+ parts.length=0;
+ busy=false; userSource=true; exportResult=null; setClips(list); if(elemMode){busyEl.textContent='Preparing audio'; setOutputBlob(encodeWav(buf));} await loadBuffer(buf,name);
+ // 外したクリップがあれば、しばらく知らせる
+ if(skipped.length){busyEl.hidden=false; busyEl.textContent=`Skipped ${skipped.length} clip${skipped.length>1?'s':''} without sound`; setTimeout(()=>{if(!busy)busyEl.hidden=true;},6000);}
+}
+
+// ---------- painting ----------
+const WARM=35, COOL=215;
+function hueToward(h,target,a){let d=((target-h+540)%360)-180;return (h+d*a+360)%360;}
+function effAbs(b,t){
+ let abs=SUBS[b].abs.slice(); const gb=SUBS[b].g;
+ if(!feat)return abs;
+ // 和音の厚み：彩度と明度は保ったまま、色相だけを隣の音域の色へずらす
+ if(varOn.thick){const th=featAt(feat.thick,t)*varAmt.thick;
+  if(th>0.01){const nb=[gb-1,gb+1].filter(k=>k>=0&&k<BANDS.length); let vx=0,vy=0;
+   for(const k of nb){const hk=rgb2hsl(BANDS[k].color)[0]*Math.PI/180; vx+=Math.cos(hk); vy+=Math.sin(hk);}
+   const target=(Math.atan2(vy,vx)*180/Math.PI+360)%360;
+   let [h,s,l]=rgb2hsl(abs.map(x=>Math.exp(-x))); h=hueToward(h,target,0.65*th);
+   abs=hsl2rgb(h,s,l).map(c=>-Math.log(Math.max(0.03,c)));}}
+ if(varOn.bright){const br=featAt(feat.bright,t), a=Math.abs(br-0.5)*2*varAmt.bright*0.55;
+  if(a>0.01){const col=abs.map(x=>Math.exp(-x)); let [h,s,l]=rgb2hsl(col); h=hueToward(h,br>0.5?WARM:COOL,a);
+   abs=hsl2rgb(h,s,l).map(c=>-Math.log(Math.max(0.03,c)));}}
+ return abs;
+}
+function paintNote(n){
+ const s=SUBS[n.band], cx=gxT(n.t+cycOff), cy=gyF(n.freq);
+ const fm=focusMul(n.band), r=(s.r[0]+(s.r[1]-s.r[0])*n.vel)*(0.85+0.3*Math.random())*fm.r;
+ const ab=effAbs(n.band,n.t);
+ deposit(cx,cy,r,s.water*(0.7+0.5*n.vel)*fm.water,s.pig*(0.6+0.6*n.vel)*fm.pig,ab,5);
+ if(s.splat){const k=2+Math.floor(Math.random()*4*n.vel);for(let j=0;j<k;j++){const a=Math.random()*6.28, d=r*(1.4+Math.random()*2.2);
+  deposit(cx+Math.cos(a)*d,cy+Math.sin(a)*d*0.8,(0.8+Math.random()*1.6)*fm.r,s.water*0.7*fm.water,s.pig*0.9*fm.pig,ab,2);}}
+ // 同じ音域・近い高さの古い筆は、新しい音が来たら止める
+ for(let k=active.length-1;k>=0;k--){const o=active[k]; if(o.band===n.band&&Math.abs(Math.log2(o.freq/n.freq))<0.6)active.splice(k,1);}
+ if(n.dur>0.15){n.last=n.t;active.push(n);}
+}
+function strokeNote(n,t){
+ // 音の伸び：解析した音量の減衰に合わせて、筆を引くように滲みを伸ばす
+ const s=SUBS[n.band], fi=clamp(Math.floor(t*an.sr/an.HOP),0,an.frames-1);
+ const env=Math.sqrt(clamp(an.energy[n.band][fi]/Math.max(1e-12,n.e0),0,1));
+ if(env<0.08)return;
+ const fm=focusMul(n.band), base=(s.r[0]+(s.r[1]-s.r[0])*n.vel)*fm.r;
+ deposit(gxT(t+cycOff),gyF(n.freq)+(Math.random()-0.5)*0.9,base*(0.4+0.45*env),s.water*(0.3+0.45*env)*fm.water,s.pig*(0.14+0.32*env)*(0.6+0.6*n.vel)*fm.pig,effAbs(n.band,t),2);
+}
+
+// ---------- drawing ----------
+const stage=document.getElementById('stage'), paintCvEl=document.getElementById('paint'), stCv=document.getElementById('static'), sctx=stCv.getContext('2d'), ovCv=document.getElementById('over'), octx=ovCv.getContext('2d');
+const ovBox=document.getElementById('overview'), ovv=document.getElementById('ovCv'), vctx=ovv.getContext('2d');
+let dpr=1, grainPat=null, ovBase=null, cellCss=1;
+(function(){const c=document.createElement('canvas');c.width=c.height=160;const g=c.getContext('2d');
+ for(let i=0;i<1800;i++){g.fillStyle=`rgba(60,50,40,${Math.random()*0.08})`;g.fillRect(Math.random()*160,Math.random()*160,1,1);} grainPat=c;})();
+function drawLayers(t){
+ const w=stCv.width,h=stCv.height,g=sctx; g.clearRect(0,0,w,h);
+ const V=t+cycOff, frac=V*cps-Math.floor(V*cps);
+ paintCvEl.style.transform=`translateX(${(-frac*cellCss).toFixed(2)}px)`;
+ const pxPerSec=cps*cellCss*dpr, X=tt=>((tt-t)*cps+PHX)*cellCss*dpr, sy=f=>gyF(f)/GH*h;
+ // grain moves with the paper
+ const off=((V*cps*cellCss)%160+160)%160;
+ g.save(); g.scale(dpr,dpr); g.translate(-off,0); g.fillStyle=g.createPattern(grainPat,'repeat'); g.fillRect(0,0,w/dpr+160,h/dpr); g.restore();
+ const t0=t-PHX/cps, t1=t+(VIS-PHX)/cps;
+ if(pencilEl.checked&&notes.length){
+  g.lineCap='round'; g.lineWidth=1*dpr;
+  const D=buffer?buffer.duration:0;
+  const drawRange=(off,from,to)=>{for(let i=lowerBound(from-off-2);i<notes.length&&notes[i].t+off<to;i++){const n=notes[i], nt=n.t+off; const x=X(nt), y=sy(n.freq);
+   if(n.group===0?nt<=t:nt+n.dur<=t)continue;
+   const xs=Math.max(x,X(t));
+   g.strokeStyle=`rgba(40,40,50,${0.18+0.22*n.vel})`; g.beginPath();
+   if(n.group===0){g.moveTo(x,y-3*dpr);g.lineTo(x,y+3*dpr);} else {g.moveTo(xs,y);g.lineTo(Math.max(xs+1.5*dpr,X(nt+n.dur)),y);}
+   g.stroke();}};
+  drawRange(0,t0,Math.min(t1,D+0.01));
+  if(loopEl.checked&&D>0&&t1>D)drawRange(D,D,t1);   // ループ時は、次の周の頭も右から見えてくる
+ }
+ // playhead
+ const pw=ovCv.width,ph=ovCv.height; octx.clearRect(0,0,pw,ph);
+ if(buffer){const px=PHX*cellCss*dpr; octx.fillStyle='rgba(204,34,132,0.88)'; octx.fillRect(px-1.5*dpr,0,3*dpr,ph);}
+}
+function buildOverview(){
+ const w=ovv.width,h=ovv.height; ovBase=document.createElement('canvas'); ovBase.width=w||1; ovBase.height=h||1; const g=ovBase.getContext('2d');
+ if(!buffer)return; const D=buffer.duration, rowH=(h-6*dpr)/BANDS.length;
+ for(const n of notes){const s=SUBS[n.band]; const row=BANDS.length-1-n.group;
+  g.fillStyle=`rgba(${s.color.map(c=>Math.round(c*255)).join(',')},${0.25+0.6*n.vel})`;
+  g.fillRect(n.t/D*w,3*dpr+row*rowH+rowH*0.15,Math.max(1,n.dur/D*w),rowH*0.7);}
+ if(useMedia&&clips.length>1){g.fillStyle='rgba(120,110,130,0.55)';for(let i=1;i<clips.length;i++)g.fillRect(Math.round(clips[i].start/D*w),0,Math.max(1,dpr),h);}
+}
+function drawOverview(){
+ const w=ovv.width,h=ovv.height; vctx.clearRect(0,0,w,h); if(!buffer||!ovBase)return;
+ const D=buffer.duration, t=clock(); vctx.fillStyle='rgba(196,38,125,0.10)';
+ vctx.fillRect((t-PHX/cps)/D*w,0,SPAN/D*w,h);
+ vctx.drawImage(ovBase,0,0);
+ vctx.fillStyle='rgba(204,34,132,0.95)'; vctx.fillRect(t/D*w-1*dpr,0,2*dpr,h);
+}
+function resize(){dpr=Math.min(2,window.devicePixelRatio||1);
+ const sw=stage.clientWidth, sh=stage.clientHeight; cellCss=sw/VIS;
+ paintCvEl.style.width=(GW*cellCss)+'px';
+ for(const c of [stCv,ovCv]){c.width=Math.round(sw*dpr);c.height=Math.round(sh*dpr);}
+ ovv.width=Math.round(ovBox.clientWidth*dpr); ovv.height=Math.round(ovBox.clientHeight*dpr);
+ buildOverview(); drawOverview();}
+new ResizeObserver(resize).observe(stage);
+
+// ---------- loop ----------
+let last=performance.now(), acc=0, fps=60, hudT=0, lastCtxT=-1, lastCtxSeen=0;
+function frame(ts){
+ if(exporting){last=ts; requestAnimationFrame(frame); return;} // 書き出し中は、紙の計算を書き出し側に任せる
+ const dt=Math.min(0.1,Math.max(0.001,(ts-last)/1000)); last=ts; fps=fps*0.92+(1/dt)*0.08;
+ let t=clock();
+ if(playing&&buffer&&elemMode){
+  const D=buffer.duration;
+  aEl.loop=loopEl.checked;
+  if(loopEl.checked&&t<aPrev-0.5){wrapCycle();}            // 音声プレーヤーが頭に戻った＝ループの1周
+  else if(!loopEl.checked&&(aEl.ended||t>=D-0.02)){t=D;pos=D;playing=false;aEl.pause();playBtn.textContent='Play';outro=performance.now();t=clock();}
+  aPrev=t;
+ }else if(playing&&buffer){
+  const D=buffer.duration;
+  {
+   // ループ：次の再生を、今の音が終わる瞬間ちょうどに予約しておく
+   if(loopEl.checked&&!nextSrc&&t>D-0.5){nextSrc=ctx.createBufferSource();nextSrc.buffer=buffer;nextSrc.connect(out);nextStartCtx=startCtx+(D-startPos);nextSrc.start(Math.max(ctx.currentTime,nextStartCtx),0);}
+   if(!loopEl.checked&&nextSrc){try{nextSrc.stop();}catch(e){}nextSrc.disconnect();nextSrc=null;}
+   if(nextSrc&&ctx.currentTime>=nextStartCtx){if(srcNode){srcNode.disconnect();} srcNode=nextSrc;nextSrc=null;startCtx=nextStartCtx;startPos=0;wrapCycle();t=clock();}
+   else if(t>=D){t=D;pos=D;playing=false;stopSource();playBtn.textContent='Play';outro=performance.now()-(clock()-D)*1000;t=clock();}
+  }
+ }
+ if(outro!==null&&t>=buffer.duration+outroLen()){outro=null;pos=buffer.duration+outroLen();t=pos;}
+ scrollTo(targetScroll(t+cycOff));
+ // 音の時計が止まっていたら起こし直す（iPhone で音声がシステムに一時停止されたとき）
+ if(playing&&ctx&&!elemMode){ if(ctx.currentTime!==lastCtxT){lastCtxT=ctx.currentTime;lastCtxSeen=ts;} else if(ts-lastCtxSeen>300){ctx.resume&&ctx.resume();lastCtxSeen=ts;} }
+ if(useMedia&&(playing||outro!==null))videoFollow(Math.min(t,buffer.duration),false);
+ // 紙が流れ切るのに合わせて、映像もフェードアウトする
+ if(hasVideo&&buffer){const end=buffer.duration, L=outroLen();
+  const a=outro!==null?clamp(1-(t-end)/L,0,1):(!playing&&pos>=end+L-0.01?0:1);
+  const v=a.toFixed(3); if(vidbox.style.opacity!==v)vidbox.style.opacity=v;}
+ GRAV=(varOn.rhythm&&feat&&playing)?0.07*varAmt.rhythm*featAt(feat.rhythm,t):0;
+ if(playing){
+  while(vIdx<notes.length&&notes[vIdx].t<=t){paintNote(notes[vIdx++]);noteTimes.push(ts);}
+  for(let k=active.length-1;k>=0;k--){const n=active[k]; if(t>=n.t+n.dur){active.splice(k,1);continue;} if(t-n.last>=0.04){n.last=t;strokeNote(n,t);}}
+ }
+ acc+=dt*120; let s=Math.min(4,Math.floor(acc)); acc-=Math.floor(acc); while(s-->0)step();
+ render(); drawLayers(t);
+ if(ts-hudT>200){hudT=ts; hud(t,ts); drawOverview();}
+ requestAnimationFrame(frame);
+}
+function hud(t,ts){
+
+ while(noteTimes.length&&noteTimes[0]<ts-1000)noteTimes.shift();
+ const D=buffer?buffer.duration:0;
+ document.getElementById('hPos').innerHTML=`${fmt(Math.min(t,D))} <span>/ ${fmt(D)}</span>`;
+ document.getElementById('hTotal').textContent=notes.length;
+ document.getElementById('hNps').textContent=noteTimes.length;
+ document.getElementById('hWet').textContent=(wetCount/N*100).toFixed(1)+'%';
+ for(const k of ['thick','bright','rhythm']){const v=feat?Math.round(featAt(feat[k],t)*100):0; const el=document.getElementById('m_'+k); el.querySelector('i').style.width=v+'%'; el.querySelector('b').textContent=v;}
+ const f=document.getElementById('hFps'); f.textContent=Math.round(fps); f.classList.toggle('warn',fps<40);
+}
+
+// ---------- controls ----------
+const playBtn=document.getElementById('play'), cta=document.getElementById('cta'), busyEl=document.getElementById('busy'), metaEl=document.getElementById('meta');
+const sensEl=document.getElementById('sens'), pencilEl=document.getElementById('pencil');
+cta.addEventListener('click',play);
+playBtn.addEventListener('click',()=>playing?pause():play());
+// 「Load audio」を押したときに、ファイルの扱いを一言添える
+const privacyEl=document.getElementById('privacy'); let privacyT=null;
+function showPrivacy(ms){privacyEl.classList.add('show'); clearTimeout(privacyT); if(ms)privacyT=setTimeout(()=>privacyEl.classList.remove('show'),ms);}
+document.querySelector('label.filebtn').addEventListener('click',()=>showPrivacy(12000));
+document.getElementById('file').addEventListener('change',e=>{showPrivacy(0);const fs=Array.from(e.target.files||[]);e.target.value='';loadFiles(fs).finally(()=>showPrivacy(6000));});
+// ---------- theme ----------
+const themeBtn=document.getElementById('themeBtn'), themeLabel=document.getElementById('themeLabel');
+const mq=window.matchMedia?matchMedia('(prefers-color-scheme: dark)'):null;
+const isDark=()=>{const a=document.documentElement.getAttribute('data-theme'); return a?a==='dark':!!(mq&&mq.matches);};
+function syncThemeBtn(){const d=isDark(); themeLabel.textContent=d?'Light':'Dark'; themeBtn.setAttribute('aria-label',d?'Switch to light mode':'Switch to dark mode');}
+try{const saved=localStorage.getItem('sighon-theme'); if(saved==='dark'||saved==='light')document.documentElement.setAttribute('data-theme',saved);}catch(e){}
+themeBtn.addEventListener('click',()=>{const next=isDark()?'light':'dark'; document.documentElement.setAttribute('data-theme',next); try{localStorage.setItem('sighon-theme',next);}catch(e){} syncThemeBtn();});
+if(mq&&mq.addEventListener)mq.addEventListener('change',syncThemeBtn);
+syncThemeBtn();
+
+// 最初に読み込む曲
+const DEFAULT_URL='audio/ballerino.ogg', DEFAULT_TITLE='Ballerino — Yehezkel Raz';
+// 音源は鍵で崩した状態で置き、再生するときだけページの中で元に戻す
+function unscramble(ab){const b=new Uint8Array(ab), R=mulberry32(0x5A1907E5); let w=0;
+ for(let i=0;i<b.length;i++){if((i&3)===0)w=Math.floor(R()*4294967296)>>>0; b[i]^=(w>>>(8*(i&3)))&255;} return b.buffer;}
+async function loadDefault(){
+ userSource=false; exportResult=null; if(typeof syncExportBtn==='function')syncExportBtn();
+ setClips(null); cycOff=0; busyEl.hidden=false; busyEl.textContent='Loading'; cta.innerHTML='Play<small>SOUND ON</small>';
+ try{ensureCtx(); const r=await fetch(DEFAULT_URL); if(!r.ok)throw 0; const raw=unscramble(await r.arrayBuffer()); if(elemMode)setOutputBlob(new Blob([raw],{type:'audio/mpeg'})); const buf=await decode(raw); await loadBuffer(buf,DEFAULT_TITLE);}
+ catch(e){ try{const b=await makeDemo(); if(elemMode)setOutputBlob(encodeWav(b)); await loadBuffer(b,'Sample');}catch(_){busyEl.hidden=false;busyEl.textContent='Load an audio file';} }
+}
+document.getElementById('demo').addEventListener('click',()=>{if(!busy)loadDefault();});
+sensEl.addEventListener('input',()=>{document.getElementById('sensOut').textContent=(+sensEl.value).toFixed(2);});
+// Focus：スライダーを動かしたら、今より先の音だけを拾い直す。すでに紙に描かれた絵の具はそのまま残す
+const focusFEl=document.getElementById('focusF'), focusSEl=document.getElementById('focusS');
+const sliderToHz=v=>30*Math.pow(12000/30,v/1000), fmtHz=f=>f>=1000?(f/1000).toFixed(f>=10000?0:1)+' kHz':Math.round(f)+' Hz';
+let focusT=null;
+function repickLive(){
+ if(!an||busy||exporting)return;
+ const t=clock(); notes=pick(an,+sensEl.value); vIdx=lowerBound(t); buildOverview(); drawOverview();
+}
+function onFocus(){
+ FOCUS.f=sliderToHz(+focusFEl.value); FOCUS.s=(+focusSEl.value)/100;
+ document.getElementById('focusFOut').textContent=fmtHz(FOCUS.f);
+ document.getElementById('focusSOut').textContent=FOCUS.s?Math.round(FOCUS.s*100)+'%':'Off';
+ clearTimeout(focusT); focusT=setTimeout(repickLive,120);
+}
+focusFEl.addEventListener('input',onFocus); focusSEl.addEventListener('input',onFocus); onFocus();
+sensEl.addEventListener('change',()=>{if(!an)return;notes=pick(an,+sensEl.value);buildOverview();seek(clock());});
+document.getElementById('span').addEventListener('change',e=>{SPAN=+e.target.value;cps=VIS/SPAN;if(buffer)seek(clock());});
+ovBox.addEventListener('click',e=>{if(!buffer||busy)return;const r=ovBox.getBoundingClientRect();seek((e.clientX-r.left)/r.width*buffer.duration);});
+['dragenter','dragover'].forEach(ev=>stage.addEventListener(ev,e=>{e.preventDefault();stage.classList.add('drag');}));
+['dragleave','drop'].forEach(ev=>stage.addEventListener(ev,e=>{e.preventDefault();stage.classList.remove('drag');}));
+stage.addEventListener('drop',e=>{const fs=e.dataTransfer&&e.dataTransfer.files;if(fs&&fs.length)loadFiles(fs);});
+
+// variables panel
+const varOn={thick:true,bright:true,rhythm:true}, varAmt={thick:0.7,bright:0.7,rhythm:0.7};
+for(const k of ['thick','bright','rhythm']){
+ const on=document.getElementById('v_'+k), amt=document.getElementById('a_'+k), o=document.getElementById('o_'+k);
+ on.addEventListener('change',()=>{varOn[k]=on.checked;amt.disabled=!on.checked;});
+ amt.addEventListener('input',()=>{varAmt[k]=+amt.value/100;o.textContent=amt.value+'%';});
+}
+// color panel
+const tgtEl=document.getElementById('cTarget'), hEl=document.getElementById('cHue'), sEl=document.getElementById('cSat'), lEl=document.getElementById('cLit');
+BANDS.forEach((b,i)=>{const o=document.createElement('option');o.value=i;o.textContent=b.name;tgtEl.appendChild(o);});
+const curAdj=()=>tgtEl.value==='all'?adj.all:adj.bands[+tgtEl.value];
+function syncColorUI(){const a=curAdj();hEl.value=a.h;sEl.value=a.s;lEl.value=a.l;
+ document.getElementById('cHueOut').textContent=`${a.h>0?'+':''}${a.h}°`;
+ document.getElementById('cSatOut').textContent=`${a.s}%`;
+ document.getElementById('cLitOut').textContent=`${a.l>0?'+':''}${a.l}`;}
+tgtEl.addEventListener('change',syncColorUI);
+for(const [el,key] of [[hEl,'h'],[sEl,'s'],[lEl,'l']])el.addEventListener('input',()=>{curAdj()[key]=+el.value;syncColorUI();applyColors();});
+document.getElementById('cReset').addEventListener('click',()=>{const a=curAdj();a.h=0;a.s=100;a.l=0;syncColorUI();applyColors();});
+syncColorUI();
+
+// ---------- 書き出し（映像と水彩を1本の動画にする） ----------
+// 再生とは別に、1コマずつ水彩を進めて動画を組み立てる（再生中のカクつきや継ぎ目の間が入らない）。
+// 画面の並びと同じく、上に映像・下に紙。左上にタイトル、右下に時間。1080×1920、30fps。
+// 初期曲（Ballerino）は書き出せない（Artlist のライセンスのため）。自分で読み込んだ音源・動画のときだけボタンを出す。
+const EX_W=1080, EX_H=1920, EX_FPS=30, EX_STEPS=4; // 120ステップ/秒 ÷ 30fps
+let exporting=false, exportCancel=false, exportResult=null, userSource=false;
+const exportBtn=document.getElementById('exportBtn');
+const canExport=()=>'VideoEncoder' in window&&'VideoFrame' in window;
+function syncExportBtn(){
+ if(exporting)return;
+ exportBtn.hidden=!(canExport()&&buffer&&userSource&&!busy);
+ exportBtn.textContent=exportResult?'Save video':'Export';
+ exportBtn.classList.toggle('play',!!exportResult);
+}
+// 映像の1コマを時刻で取り出す（WebCodecsで先頭から順に展開する）
+async function openFrames(blob){
+ const M=await loadMp4box(), wait=ms=>new Promise(r=>setTimeout(r,ms));
+ const mp4=M.createFile(); let track=null; const q=[]; let off=0, eof=false; const CH=8<<20;
+ mp4.onReady=inf=>{track=inf.videoTracks[0]||null; if(track){mp4.setExtractionOptions(track.id,null,{nbSamples:20}); mp4.start();}};
+ mp4.onSamples=(id,u,s)=>{for(const x of s)q.push(x);};
+ const feed=async()=>{if(off>=blob.size){if(!eof){eof=true;mp4.flush();}return false;}
+  const ab=await blob.slice(off,off+CH).arrayBuffer(); ab.fileStart=off; const n=mp4.appendBuffer(ab); off=(typeof n==='number'&&n>off)?n:off+ab.byteLength; return true;};
+ while(!track){if(!(await feed()))return null;}
+ let desc; const trak=mp4.getTrackById(track.id);
+ for(const e of trak.mdia.minf.stbl.stsd.entries){const box=e.avcC||e.hvcC||e.vpcC||e.av1C;
+  if(box){const ds=new DataStream(undefined,0,DataStream.BIG_ENDIAN); box.write(ds); desc=new Uint8Array(ds.buffer,8); break;}}
+ const dcfg={codec:track.codec,codedWidth:track.video.width,codedHeight:track.video.height,description:desc};
+ const sup=await VideoDecoder.isConfigSupported(dcfg); if(!sup||!sup.supported)throw new Error('This video cannot be read for export.');
+ const out=[]; let err=null, base=null, flushed=false, sent=0;
+ const dec=new VideoDecoder({output:f=>out.push(f),error:e=>{err=e;}}); dec.configure(dcfg);
+ const rot=trackRotation(track.matrix), w=track.video.width, h=track.video.height;
+ return {
+  rot, aspect:(rot%180)?h/w:w/h,
+  async frameAt(t){
+   const tu=t*1e6;
+   for(;;){
+    if(err)throw err;
+    if(base===null&&out.length)base=out[0].timestamp;
+    while(out.length>=2&&out[1].timestamp-base<=tu)out.shift().close();
+    if(out.length>=2||(flushed&&out.length))return out[0];
+    if(flushed)return null;
+    if(q.length){while(dec.decodeQueueSize>4){await wait(1); if(err)throw err;}
+     const x=q.shift(); dec.decode(new EncodedVideoChunk({type:x.is_sync?'key':'delta',timestamp:Math.round(1e6*x.cts/x.timescale),duration:Math.round(1e6*x.duration/x.timescale),data:x.data}));
+     if(++sent%20===0)mp4.releaseUsedSamples(track.id,x.number); continue;}
+    if(await feed())continue;
+    flushed=true; await dec.flush();
+   }
+  },
+  close(){for(const f of out)f.close(); out.length=0; try{if(dec.state!=='closed')dec.close();}catch(e){}}
+ };
+}
+function drawRotated(g,f,rot,x,y,w,h){
+ g.save(); g.translate(x+w/2,y+h/2); if(rot)g.rotate(rot*Math.PI/180);
+ const dw=(rot%180)?h:w, dh=(rot%180)?w:h; g.drawImage(f,-dw/2,-dh/2,dw,dh); g.restore();
+}
+// 紙の上の鉛筆線・粒子・再生ヘッドを、書き出し用の大きさで描く（画面の drawLayers と同じ内容）
+function drawPaperOverlay(g,px,py,pw,ph,t,scale){
+ const cell=pw/VIS, V=t, X=tt=>px+((tt-t)*cps+PHX)*cell, sy=f=>py+gyF(f)/GH*ph;
+ g.save(); g.beginPath(); g.rect(px,py,pw,ph); g.clip();
+ const off=((V*cps*cell/scale)%160+160)%160;
+ g.translate(px,py); g.scale(scale,scale); g.translate(-off,0); g.fillStyle=g.createPattern(grainPat,'repeat'); g.fillRect(0,0,pw/scale+160,ph/scale);
+ g.restore();
+ g.save(); g.beginPath(); g.rect(px,py,pw,ph); g.clip();
+ if(pencilEl.checked&&notes.length){
+  const t0=t-PHX/cps, t1=t+(VIS-PHX)/cps, D=buffer.duration; g.lineCap='round'; g.lineWidth=1.2*scale;
+  for(let i=lowerBound(t0-2);i<notes.length&&notes[i].t<Math.min(t1,D+0.01);i++){const n=notes[i], x=X(n.t), y=sy(n.freq);
+   if(n.group===0?n.t<=t:n.t+n.dur<=t)continue; const xs=Math.max(x,X(t));
+   g.strokeStyle=`rgba(40,40,50,${0.18+0.22*n.vel})`; g.beginPath();
+   if(n.group===0){g.moveTo(x,y-3*scale);g.lineTo(x,y+3*scale);} else {g.moveTo(xs,y);g.lineTo(Math.max(xs+1.5*scale,X(n.t+n.dur)),y);}
+   g.stroke();}
+ }
+ g.fillStyle='rgba(204,34,132,0.88)'; g.fillRect(px+PHX*cell-1.5*scale,py,3*scale,ph);
+ g.restore();
+}
+async function pickVideoEncoder(){
+ for(const [codec,mux] of [['avc1.640028','avc'],['avc1.4d0028','avc'],['avc1.42e028','avc'],['vp09.00.40.08','vp9']]){
+  const cfg={codec,width:EX_W,height:EX_H,bitrate:8e6,framerate:EX_FPS,latencyMode:'quality'}; if(mux==='avc')cfg.avc={format:'avc'};
+  try{const r=await VideoEncoder.isConfigSupported(cfg); if(r.supported)return {cfg,mux};}catch(e){}}
+ return null;
+}
+async function pickAudioEncoder(sr,ch){
+ if(!('AudioEncoder' in window)||!('AudioData' in window))return null;
+ for(const [codec,mux,br] of [['mp4a.40.2','aac',192000],['opus','opus',160000]]){
+  const cfg={codec,sampleRate:sr,numberOfChannels:ch,bitrate:br};
+  try{const r=await AudioEncoder.isConfigSupported(cfg); if(r.supported)return {cfg,mux};}catch(e){}}
+ return null;
+}
+function exportProgress(r,label){busyEl.hidden=false; busyEl.textContent=`${label} ${Math.round(r*100)}%`;}
+async function runExport(){
+ if(exporting||!buffer||!userSource)return;
+ // 工程ごとの時間（開発用。console に出す）
+ const P={audio:0,sim:0,video:0,draw:0,frame:0,wait:0,screen:0}, now=()=>performance.now(), T0=now(); let tA;
+ const wait=ms=>new Promise(r=>setTimeout(r,ms));
+ if(playing)pause(); exportResult=null;
+ exporting=true; exportCancel=false; busy=true; cta.hidden=true;
+ exportBtn.textContent='Cancel'; exportBtn.classList.remove('play');
+ for(const el of [playBtn,document.getElementById('demo'),document.getElementById('file')])el.disabled=true;
+ document.querySelector('label.filebtn').style.opacity='.4';
+ let venc=null, aenc=null, src=null;
+ try{
+  const X=await loadMuxer();
+  await Promise.all([document.fonts.load('400 120px "Instrument Serif"'),document.fonts.load('400 40px "Geist Mono"')]).catch(()=>{});
+  const D=buffer.duration, L=outroLen(), total=Math.ceil((D+L)*EX_FPS);
+  const ve=await pickVideoEncoder(); if(!ve)throw new Error('This browser cannot export video.');
+  const ch=Math.min(2,buffer.numberOfChannels), sr=buffer.sampleRate;
+  const ae=await pickAudioEncoder(sr,ch);
+  const muxer=new X.Muxer({target:new X.ArrayBufferTarget(),video:{codec:ve.mux,width:EX_W,height:EX_H,frameRate:EX_FPS},
+   audio:ae?{codec:ae.mux,numberOfChannels:ch,sampleRate:sr}:undefined,fastStart:'in-memory',firstTimestampBehavior:'offset'});
+  let err=null;
+  // 音：つないだ音声をそのまま書き出す
+  tA=now();
+  if(ae){
+   // Safari 26 の AAC は、付けてくる設定情報（AudioSpecificConfig）が壊れていて、そのままmp4にすると無音になる（WebKit bug 302253）。
+   // AAC のときは Safari の設定情報を使わず、書き出し側で正しい設定（AAC-LC・サンプルレート・チャンネル数）を作らせる。
+   aenc=new AudioEncoder({output:(c,m)=>muxer.addAudioChunk(c,ae.mux==='aac'?undefined:m),error:e=>{err=e;}}); aenc.configure(ae.cfg);
+   const CHK=4096, chs=[...Array(ch)].map((_,c)=>buffer.getChannelData(c));
+   for(let i=0;i<buffer.length;i+=CHK){
+    if(exportCancel)throw new Error('cancel'); if(err)throw err;
+    const n=Math.min(CHK,buffer.length-i), d=new Float32Array(n*ch); for(let c=0;c<ch;c++)d.set(chs[c].subarray(i,i+n),c*n);
+    const ad=new AudioData({format:'f32-planar',sampleRate:sr,numberOfFrames:n,numberOfChannels:ch,timestamp:Math.round(i/sr*1e6),data:d});
+    aenc.encode(ad); ad.close();
+    while(aenc.encodeQueueSize>8)await wait(1);
+    if((i/CHK)%40===0){exportProgress(i/buffer.length*0.05,'Exporting'); await wait(0);}
+   }
+   await aenc.flush(); aenc.close(); aenc=null;
+  }
+  P.audio=now()-tA;
+  venc=new VideoEncoder({output:(c,m)=>muxer.addVideoChunk(c,m),error:e=>{err=e;}}); venc.configure(ve.cfg);
+  // 画面構成：映像の枠の大きさは、全クリップで一番大きく要る高さにそろえる（紙が途中で動かないように）
+  // タイトルは映像のすぐ上、時刻は紙のすぐ下。そのまとまり全体を上下中央に置き、外側の余白を大きく取る
+  const M=84, cw=EX_W-2*M, pw=cw, ph=Math.round(pw*9/16), gap=36, OUT=150, TS=92, titleBand=TS*0.8+44, timeBand=72;
+  const vclips=clips.filter(c=>c.isVideo&&c.blob);
+  let aspects=[];
+  for(const c of vclips){ if(!c.aspect){try{const s=await openFrames(c.blob); if(s){c.aspect=s.aspect; c.rot=s.rot; s.close();}}catch(e){}} if(c.aspect)aspects.push(c.aspect); }
+  const maxVH=EX_H-2*OUT-titleBand-timeBand-ph-gap;
+  const boxH=aspects.length?Math.round(Math.max(...aspects.map(a=>Math.min(maxVH,cw/a)))):0;
+  const blockH=boxH?boxH+gap+ph:ph, blockY=Math.round((EX_H-(titleBand+blockH+timeBand))/2+titleBand);
+  const boxY=blockY, paperY=boxH?blockY+boxH+gap:blockY;
+  const css=getComputedStyle(document.documentElement), col=k=>css.getPropertyValue(k).trim();
+  const BG=col('--bg')||'#e8e8eb', FG=col('--fg')||'#17161b', MUTED=col('--muted')||'#76747e';
+  // 1コマは画面外キャンバスに描き、画像にして渡す（iPhoneのSafariで、普通のキャンバスから渡すより約10倍速い：2026-10-21のテスト）
+  const useOff=typeof OffscreenCanvas!=='undefined'&&'transferToImageBitmap' in OffscreenCanvas.prototype;
+  const cv=useOff?new OffscreenCanvas(EX_W,EX_H):Object.assign(document.createElement('canvas'),{width:EX_W,height:EX_H}); const g=cv.getContext('2d');
+  // 文字は、サイトの書体を確実に使えるよう普通のキャンバスで描いておき、それを貼り込む
+  // parts は [文字, 色, 書体（省略時は font）] の並び。同じ基準線にそろえて横に並べる
+  const textImg=(parts,font,spacing,baseline)=>{const c=document.createElement('canvas'),x=c.getContext('2d'); if(spacing&&'letterSpacing' in x)x.letterSpacing=spacing;
+   const ws=parts.map(([str,,f])=>{x.font=f||font; return x.measureText(str).width;}), w=Math.ceil(ws.reduce((a,b)=>a+b,0))+8, h=Math.ceil(baseline*1.45);
+   c.width=w; c.height=h; if(spacing&&'letterSpacing' in x)x.letterSpacing=spacing; x.textBaseline='alphabetic'; let px=2;
+   parts.forEach(([str,color,f],i)=>{x.font=f||font; x.fillStyle=color; x.fillText(str,px,baseline); px+=ws[i];}); return {c,w,baseline};};
+  // 「-彩音-」は漢字で字の密度が高いので、小さめにして控えめにする
+  const SERIF='"Instrument Serif", "Hiragino Mincho ProN", "Yu Mincho", "Noto Serif JP", serif';
+  const titleImg=textImg([['SIGHON',FG],['-彩音-',FG,`400 ${Math.round(TS*0.56)}px ${SERIF}`]],`400 ${TS}px ${SERIF}`,(TS*0.06).toFixed(1)+'px',TS);
+  const timeCache=new Map(), MONO='400 40px "Geist Mono", ui-monospace, Menlo, monospace';
+  const timeImg=str=>{let im=timeCache.get(str); if(!im){im=textImg([[str,FG],[' / '+fmt(D),MUTED]],MONO,'',40); timeCache.set(str,im);} return im;};
+  const scale=pw/360; // 画面（スマホ幅）に対する拡大率。粒子や線の太さに使う
+  // 紙を頭から作り直す
+  seek(0); const savedCyc=cycOff; cycOff=0;
+  let ci=-1, lastFrameT=0;
+  for(let k=0;k<total;k++){
+   if(exportCancel)throw new Error('cancel'); if(err)throw err;
+   const t=k/EX_FPS, playingNow=t<=D; tA=now();
+   // 水彩を進める（画面の frame() と同じ順番）
+   scrollTo(targetScroll(t));
+   GRAV=(varOn.rhythm&&feat&&playingNow)?0.07*varAmt.rhythm*featAt(feat.rhythm,t):0;
+   if(playingNow){
+    while(vIdx<notes.length&&notes[vIdx].t<=t)paintNote(notes[vIdx++]);
+    for(let j=active.length-1;j>=0;j--){const n=active[j]; if(t>=n.t+n.dur){active.splice(j,1);continue;} if(t-n.last>=0.04){n.last=t;strokeNote(n,t);}}
+   }
+   for(let s=0;s<EX_STEPS;s++)step();
+   render(); P.sim+=now()-tA; tA=now();
+   // 1コマを組み立てる
+   g.fillStyle=BG; g.fillRect(0,0,EX_W,EX_H);
+   g.drawImage(titleImg.c,M-5,blockY-44-titleImg.baseline);
+   if(boxH){
+    const tv=Math.min(t,D-0.001), i=clipAt(tv), c=clips[i];
+    if(i!==ci){ if(src){src.close();src=null;} ci=i; if(c.isVideo&&c.blob){src=await openFrames(c.blob);} }
+    if(src){
+     const tV=now(); const f=await src.frameAt(Math.max(0,tv-c.start)); P.video+=now()-tV;
+     if(f){const a=src.aspect, vh=Math.min(boxH,cw/a), vw=vh*a, vx=M+(cw-vw)/2, vy=boxY+(boxH-vh)/2;
+      g.globalAlpha=t>D?clamp(1-(t-D)/L,0,1):1; drawRotated(g,f,src.rot,vx,vy,vw,vh); g.globalAlpha=1;}
+    }
+   }
+   // 紙
+   g.save(); g.beginPath(); g.rect(M,paperY,pw,ph); g.clip(); g.fillStyle='#f4f2ec'; g.fillRect(M,paperY,pw,ph);
+   const cell=pw/VIS, frac=t*cps-Math.floor(t*cps); g.imageSmoothingEnabled=true; g.imageSmoothingQuality='high';
+   g.drawImage(paintCv,M-frac*cell,paperY,GW*cell,ph); g.restore();
+   drawPaperOverlay(g,M,paperY,pw,ph,t,scale);
+   // 時間（右下）
+   const tim=timeImg(fmt(Math.min(t,D))), ty=paperY+ph+timeBand-12;
+   g.drawImage(tim.c,EX_W-M-tim.w+6,ty-tim.baseline);
+   P.draw+=now()-tA; tA=now();
+   const fsrc=useOff?cv.transferToImageBitmap():cv;
+   const vf=new VideoFrame(fsrc,{timestamp:Math.round(k*1e6/EX_FPS),duration:Math.round(1e6/EX_FPS)}); if(useOff)fsrc.close();
+   venc.encode(vf,{keyFrame:k%(EX_FPS*2)===0}); vf.close(); P.frame+=now()-tA; tA=now();
+   while(venc.encodeQueueSize>4){await wait(1); if(err)throw err;} P.wait+=now()-tA; tA=now();
+   if(k%3===0){drawLayers(Math.min(t,D+L)); exportProgress(0.05+0.95*k/total,'Exporting'); await wait(0);} P.screen+=now()-tA;
+  }
+  if(src){src.close();src=null;}
+  tA=now(); await venc.flush(); venc.close(); venc=null; P.wait+=now()-tA;
+  muxer.finalize();
+  console.info('SIGHON export',((now()-T0)/1000).toFixed(1)+'s',Object.fromEntries(Object.entries(P).map(([k,v])=>[k,+(v/1000).toFixed(1)])),ve.cfg.codec,ae?ae.cfg.codec:'no audio');
+  const safe=(title||'SIGHON').replace(/\.[a-z0-9]{2,4}$/i,'').replace(/[\\/:*?"<>|]+/g,'_').slice(0,60);
+  exportResult=new File([muxer.target.buffer],`SIGHON - ${safe}.mp4`,{type:'video/mp4'});
+  cycOff=savedCyc;
+  busyEl.textContent=ae?'Export finished':'Export finished (no sound: this browser cannot encode audio)';
+ }catch(e){
+  if(src)src.close();
+  for(const x of [venc,aenc])try{if(x&&x.state!=='closed')x.close();}catch(_){}
+  exportResult=null;
+  busyEl.hidden=false; busyEl.textContent=e&&e.message==='cancel'?'Export cancelled':'Export failed: '+((e&&e.message)||e);
+  console.warn('SIGHON export',e);
+ }finally{
+  exporting=false; busy=false;
+  for(const el of [playBtn,document.getElementById('demo'),document.getElementById('file')])el.disabled=false;
+  document.querySelector('label.filebtn').style.opacity='';
+  seek(0); cta.hidden=false; syncExportBtn();
+  setTimeout(()=>{if(!busy&&!exporting)busyEl.hidden=true;},5000);
+ }
+}
+async function saveExport(){
+ const f=exportResult; if(!f)return;
+ // iPhone では共有シートから「ビデオを保存」で写真に入れられる。使えないときはダウンロードする
+ try{ if(navigator.canShare&&navigator.canShare({files:[f]})){await navigator.share({files:[f]}); return;} }
+ catch(e){ if(e&&e.name==='AbortError')return; }
+ const a=document.createElement('a'); a.href=URL.createObjectURL(f); a.download=f.name; document.body.appendChild(a); a.click(); a.remove();
+ setTimeout(()=>URL.revokeObjectURL(a.href),60000);
+}
+exportBtn.addEventListener('click',()=>{ if(exporting){exportCancel=true;return;} if(exportResult){saveExport();return;} runExport(); });
+
+refillPaper(); resize(); requestAnimationFrame(frame);
+loadDefault();
+
+// ================= MIDI（live.html だけ） =================
+// Intech Studio Grid（EN16＋VSN1）で操作する。どのつまみ・キーが何を送るかは「Learn」で一度だけ覚え、この端末に記憶する。
+(()=>{
+ const $=id=>document.getElementById(id);
+ const statEl=$('midiStat'), promptEl=$('midiPrompt'), textEl=$('midiText'), lastEl=$('midiLast');
+ const learnBtn=$('midiLearn'), skipBtn=$('midiSkip'), cancelBtn=$('midiCancel');
+ const bleedEl=$('bleed'), bleedOut=$('bleedOut');
+
+ // にじみ：-100〜+100。+で水が多く乾きにくい（遠くまで広がる）、−で水が少なく早く乾く
+ function onBleed(){
+  const k=(+bleedEl.value)/100;
+  BLEED_W=Math.pow(2,k*0.85); BLEED_E=Math.pow(2,-k);
+  const v=+bleedEl.value; bleedOut.textContent=(v>0?'+':'')+v;
+ }
+ bleedEl.addEventListener('input',onBleed); onBleed();
+
+ // ---- 動かす対象 ----
+ const fire=(el,ev)=>el.dispatchEvent(new Event(ev,{bubbles:true}));
+ let sensT=null;
+ function setRange(el,v,ev){
+  const mn=+el.min, mx=+el.max; v=Math.max(mn,Math.min(mx,v));
+  if(+el.value===v)return; el.value=v; fire(el,ev||'input');
+ }
+ // つまみ：step＝1クリックで動く量、abs＝絶対値モードで受けたとき（0〜127）
+ function knob(id,step,init,after){
+  const el=$(id);
+  return {
+   turn:d=>{setRange(el,+el.value+d*step); after&&after();},
+   abs:v=>{setRange(el,+el.min+(+el.max-+el.min)*v/127); after&&after();},
+   press:()=>{setRange(el,init); after&&after();},
+   el
+  };
+ }
+ // Sensitivity：Focus と同じく、今より先の音だけを拾い直す（紙の絵の具はそのまま）
+ const sensAfter=()=>{clearTimeout(sensT); sensT=setTimeout(()=>{ if(!an||busy||exporting)return; notes=pick(an,+sensEl.value); vIdx=lowerBound(clock()); buildOverview(); drawOverview(); },120);};
+ const sens=knob('sens',0.05,0.5,sensAfter);
+ const FOCUS_STEP=1000/(12*Math.log2(12000/30)); // 1クリック＝半音
+ // Window：1クリックで1段。速く回しても飛ばないよう、0.25秒に1段まで
+ let spanT=0;
+ const spanEl=$('span'), SPANS=['8','16','32'];
+ const span={
+  turn:d=>{const now=performance.now(); if(now-spanT<250)return; const i=SPANS.indexOf(spanEl.value), j=Math.max(0,Math.min(2,i+(d>0?1:-1))); if(i===j)return; spanT=now; spanEl.value=SPANS[j]; fire(spanEl,'change');},
+  abs:v=>{const j=Math.min(2,Math.floor(v/128*3)); if(spanEl.value===SPANS[j])return; spanEl.value=SPANS[j]; fire(spanEl,'change');},
+  press:()=>{if(spanEl.value==='16')return; spanEl.value='16'; fire(spanEl,'change');},
+  el:spanEl
+ };
+ const pencilEl2=$('pencil');
+ const pencil={turn:d=>{pencilEl2.checked=d>0;}, abs:v=>{pencilEl2.checked=v>=64;}, press:()=>{pencilEl2.checked=!pencilEl2.checked;}, el:pencilEl2};
+ const tgt=$('cTarget');
+ const target=v=>({press:()=>{if(tgt.value===v)return; tgt.value=v; fire(tgt,'change');}, el:tgt});
+ const playB=$('play'), loopB=$('loopEl');
+ const ACT={
+  sens, focusF:knob('focusF',FOCUS_STEP,700), focusS:knob('focusS',5,0), span,
+  thick:knob('a_thick',5,70), bright:knob('a_bright',5,70), rhythm:knob('a_rhythm',5,70), pencil,
+  hue:knob('cHue',18,0), sat:knob('cSat',10,100), lit:knob('cLit',4,0),
+  tAll:target('all'), t0:target('0'), t1:target('1'), t2:target('2'), t3:target('3'), t4:target('4'),
+  play:{press:()=>{if(!playB.disabled)playB.click();}, el:playB},
+  loop:{press:()=>{loopB.checked=!loopB.checked; fire(loopB,'change');}, el:loopB},
+  bleed:knob('bleed',2,0)
+ };
+
+ // ---- 覚える順番（割り当ての案のとおり） ----
+ const STEPS=[];
+ const en=[['sens','Sensitivity'],['focusF','Focus'],['focusS','Strength'],['span','Window'],
+           ['thick','Harmonic density'],['bright','Spectral brightness'],['rhythm','Rhythmic energy'],['pencil','Pencil guide'],
+           ['hue','Hue'],['sat','Saturation'],['lit','Lightness']];
+ en.forEach(([k,name],i)=>{
+  const where=`EN16 · row ${Math.floor(i/4)+1} · knob ${i%4+1}`;
+  STEPS.push({act:k,kind:'turn',where,text:`Turn right a few clicks — ${name}`});
+  STEPS.push({act:k,kind:'press',where,text:`Press the same knob — ${k==='pencil'?'toggle':'reset'} ${name}`});
+ });
+ [['tAll','Colour: All bands'],['t0','Colour: Low'],['t1','Colour: Low-mid'],['t2','Colour: Mid'],['t3','Colour: High-mid'],['t4','Colour: High'],['play','Play / Pause'],['loop','Loop']]
+  .forEach(([k,name],i)=>STEPS.push({act:k,kind:'press',where:`VSN1 · key ${i+1}`,text:`Press — ${name}`}));
+ STEPS.push({act:'bleed',kind:'turn',where:'VSN1 · jog wheel',text:'Turn right a few clicks — Bleed'});
+ STEPS.push({act:'bleed',kind:'press',where:'VSN1 · jog wheel',text:'Press the jog wheel — reset Bleed'});
+
+ // ---- 記憶 ----
+ const KEY='sighon-midi-map';
+ let map={};
+ try{map=JSON.parse(localStorage.getItem(KEY)||'{}')||{};}catch(e){map={};}
+ const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(map));}catch(e){}};
+ // 受け取ったメッセージ → 割り当て
+ let index={};
+ function rebuild(){
+  index={};
+  // 押し込みは "act.press" として記憶しているので、同じ ACT を引けるよう名前をそろえる
+  for(const [k,b] of Object.entries(map)){const key=k.replace(/\.press$/,''); (index[b.id]=index[b.id]||[]).push({key,b});}
+ }
+ rebuild();
+ const count=()=>Object.keys(map).length;
+
+ // ---- 受け取り ----
+ let access=null, learning=-1, cap=null, capT=null, holdUntil=0;
+ const idOf=(type,ch,n)=>`${type}:${ch}:${n}`;
+ function decodeRel(b,v){
+  if(b.mode==='bin')return v-64;
+  return v<64?v:(v>=96?v-128:-(v-64)); // 2の補数（127＝−1）と符号ビット（65＝−1）の両方を読む
+ }
+ function onMsg(e){
+  const d=e.data; if(!d||d.length<2)return;
+  const st=d[0]&0xF0, ch=(d[0]&0x0F)+1, n=d[1], v=d.length>2?d[2]:0;
+  let type=null, on=false;
+  if(st===0xB0){type='cc'; on=v>0;}
+  else if(st===0x90){type='note'; on=v>0;}
+  else if(st===0x80){type='note'; on=false;}
+  else return;
+  lastEl.textContent=`${type==='cc'?'CC':'Note'} ${n} · ch ${ch} · ${v}`;
+  const id=idOf(type,ch,n);
+  if(learning>=0){learnMsg(type,id,v,on); return;}
+  const list=index[id]; if(!list)return;
+  for(const {key,b} of list){
+   const a=ACT[key]; if(!a)continue;
+   if(b.kind==='press'){ if(on&&a.press)a.press(); }
+   else if(b.mode==='abs'){ a.abs&&a.abs(v); }
+   else { const dd=decodeRel(b,v); if(dd&&a.turn)a.turn(dd); }
+  }
+ }
+
+ // ---- Learn ----
+ function mark(on){ const s=STEPS[learning]; if(!s)return; const el=ACT[s.act].el; const box=el&&(el.closest('.row,.mod,.check,.transport')||el); if(box)box.classList.toggle('learning',on); }
+ function showStep(){
+  if(learning>=STEPS.length){finishLearn(); return;}
+  const s=STEPS[learning];
+  promptEl.hidden=false;
+  textEl.innerHTML=`<small>${learning+1} / ${STEPS.length} · ${s.where}</small>${s.text}`;
+  mark(true);
+ }
+ function nextStep(){ mark(false); learning++; cap=null; clearTimeout(capT); holdUntil=performance.now()+350; showStep(); }
+ function learnMsg(type,id,v,on){
+  const s=STEPS[learning]; if(!s)return;
+  if(performance.now()<holdUntil)return;
+  if(s.kind==='press'){
+   if(!on)return;
+   // 同じつまみの「回す」と同じメッセージは押し込みとして受けない
+   const turnB=map[s.act]&&map[s.act].kind==='turn'?map[s.act]:null;
+   if(s.act&&STEPS[learning-1]&&STEPS[learning-1].act===s.act&&turnB&&turnB.id===id)return;
+   map[s.act+'.press']={id,kind:'press'};
+   nextStep(); return;
+  }
+  // 回す：CCを数回集めて、絶対値か相対値かを見分ける
+  if(type!=='cc')return;
+  if(!cap)cap={id,vals:[]};
+  if(cap.id!==id)return;
+  cap.vals.push(v);
+  clearTimeout(capT);
+  if(cap.vals.length>=4)return classify();
+  capT=setTimeout(()=>{ if(cap&&cap.vals.length>=3)classify(); else { textEl.innerHTML=textEl.innerHTML.replace(/<em>.*<\/em>/,'')+'<em> (a few more clicks)</em>'; cap=null; } },500);
+ }
+ function classify(){
+  const vs=cap.vals;
+  let inc=true; for(let i=1;i<vs.length;i++)if(!(vs[i]>vs[i-1]))inc=false;
+  let mode;
+  if(inc)mode='abs';
+  else if(vs.every(v=>v>=65&&v<=95))mode='bin';
+  else if(vs.every(v=>v>=1&&v<=31))mode='two';
+  else mode='abs';
+  map[STEPS[learning].act]={id:cap.id,kind:'turn',mode};
+  nextStep();
+ }
+ function startLearn(){
+  // 覚え直すときは、いったん全部消してから順に覚える
+  map={}; rebuild();
+  learning=0; cap=null; holdUntil=0;
+  learnBtn.hidden=true;
+  showStep();
+ }
+ function finishLearn(){
+  mark(false); learning=-1; promptEl.hidden=true;
+  learnBtn.hidden=false;
+  save(); rebuild(); status();
+ }
+ function cancelLearn(){
+  mark(false); learning=-1; promptEl.hidden=true;
+  try{map=JSON.parse(localStorage.getItem(KEY)||'{}')||{};}catch(e){map={};}
+  learnBtn.hidden=false;
+  rebuild(); status();
+ }
+ learnBtn.addEventListener('click',()=>{ if(!access){status();return;} startLearn(); });
+ skipBtn.addEventListener('click',nextStep);
+ cancelBtn.addEventListener('click',cancelLearn);
+ learnBtn.textContent=count()?'Learn again':'Learn';
+
+
+ // ---- 接続 ----
+ function status(){
+  if(!navigator.requestMIDIAccess){statEl.textContent='Web MIDI is not available in this browser. Use Chrome or Edge on a computer.'; learnBtn.hidden=true; return;}
+  if(!access){statEl.textContent='MIDI access was not allowed.'; return;}
+  const names=[...access.inputs.values()].filter(i=>i.state==='connected').map(i=>i.name);
+  const c=count();
+  statEl.innerHTML=(names.length?`<b>${names.map(x=>x.replace(/[<&>]/g,'')).join(', ')}</b>`:'No device connected')+
+   `<br>${c?c+' controls assigned':'Press Learn to assign controls'}`;
+  learnBtn.textContent=c?'Learn again':'Learn';
+ }
+ function attach(){ for(const inp of access.inputs.values())inp.onmidimessage=onMsg; status(); }
+ if(navigator.requestMIDIAccess){
+  navigator.requestMIDIAccess({sysex:false}).then(a=>{access=a; a.onstatechange=attach; attach();},()=>{access=null; status();});
+ } else status();
+})();
+
+
+})();
+</script>
+
+</body>
+</html>
