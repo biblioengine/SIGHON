@@ -147,6 +147,17 @@ input[type=range]:disabled{opacity:.35}
 .midiprompt .textbtn:hover{color:var(--bg);opacity:1}
 .midibtns{display:flex;gap:16px}
 .learning{outline:1px solid var(--accent);outline-offset:6px;border-radius:2px}
+.liverow{display:flex;justify-content:center;align-items:center;gap:28px}
+.liverow .stage{margin-inline:0;flex:0 1 auto;min-width:0}
+.knobs{flex:0 0 auto;display:grid;grid-template-columns:repeat(4,70px);gap:16px 2px}
+.knob{display:flex;flex-direction:column;align-items:center;gap:6px;min-width:0}
+.knob svg{width:34px;height:34px;display:block;overflow:visible}
+.knob .tr{fill:none;stroke:var(--faint);stroke-width:2.2;stroke-linecap:round}
+.knob .vl{fill:none;stroke:var(--accent);stroke-width:2.2;stroke-linecap:round}
+.knob .pt{stroke:var(--fg);stroke-width:1.6;stroke-linecap:round}
+.knob span{font:10px/1.2 var(--mono);color:var(--muted);text-align:center;white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis}
+.knob.empty .tr{stroke-dasharray:1.5 3.5}
+@media (max-width:760px){.liverow{flex-direction:column;gap:16px}.liverow .stage{width:100%}}
 .colophon{max-width:62ch;color:var(--muted);margin:0;font-size:12px}
 html{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
 body{margin:0}
@@ -167,12 +178,15 @@ body{margin:0}
   <div class="deck" id="deck">
   <div class="stickybox">
   <div class="vidbox" id="vidbox" hidden><video id="vidA" muted playsinline preload="auto"></video><video id="vidB" muted playsinline preload="auto" hidden></video></div>
+  <div class="liverow">
   <div class="stage" id="stage">
     <canvas id="paint" width="288" height="162"></canvas>
     <canvas id="static"></canvas>
     <canvas id="over"></canvas>
     <button class="cta" id="cta" hidden>Play<small>SOUND ON</small></button>
     <div class="busy" id="busy">Analysing</div>
+  </div>
+  <div class="knobs" id="knobs" aria-label="EN16"></div>
   </div>
   </div>
 
@@ -1624,6 +1638,43 @@ loadDefault();
  } else status();
 })();
 
+
+
+// ---- 紙の右側の操作パネル：EN16 の並びのまま、つまみの位置と名前だけを出す ----
+(()=>{
+ const box=document.getElementById('knobs'); if(!box)return;
+ // [名前, 要素id, 種類]　u＝左端から、b＝真上から左右へ、s＝3段の選択、c＝オン／オフ
+ const K=[['Sensitivity','sens','u'],['Focus','focusF','u'],['Strength','focusS','u'],['Window','span','s'],
+          ['Harmonic','a_thick','u'],['Brightness','a_bright','u'],['Rhythm','a_rhythm','u'],['Pencil','pencil','c'],
+          ['Hue','cHue','b'],['Saturation','cSat','u'],['Lightness','cLit','b'],null,
+          null,null,null,null];
+ const R=14, C=17, A0=135, SW=270;
+ const at=(a,r)=>{const t=a*Math.PI/180; return [(C+r*Math.cos(t)).toFixed(2),(C+r*Math.sin(t)).toFixed(2)];};
+ const arc=(a,b)=>{ if(b<a)[a,b]=[b,a]; if(b-a<0.5)return ''; const [x0,y0]=at(a,R),[x1,y1]=at(b,R); return `M${x0} ${y0}A${R} ${R} 0 ${b-a>180?1:0} 1 ${x1} ${y1}`; };
+ const cells=K.map(k=>{
+  const d=document.createElement('div'); d.className='knob'+(k?'':' empty');
+  d.innerHTML=`<svg viewBox="0 0 34 34" aria-hidden="true"><path class="tr" d="${arc(A0,A0+SW)}"/>${k?'<path class="vl"/><line class="pt"/>':''}</svg><span>${k?k[0]:'&nbsp;'}</span>`;
+  box.appendChild(d);
+  return k?{k,el:document.getElementById(k[1]),vl:d.querySelector('.vl'),pt:d.querySelector('.pt'),last:null}:null;
+ });
+ function frac(c){
+  const el=c.el, t=c.k[2];
+  if(t==='c')return el.checked?1:0;
+  if(t==='s')return Math.max(0,el.selectedIndex)/Math.max(1,el.options.length-1);
+  return (+el.value-+el.min)/(+el.max-+el.min);
+ }
+ function draw(){
+  for(const c of cells){ if(!c||!c.el)continue;
+   const f=frac(c); if(f===c.last)continue; c.last=f;
+   const a=A0+SW*f;
+   c.vl.setAttribute('d', c.k[2]==='b'?arc(270,a):arc(A0,a));
+   const [x0,y0]=at(a,R-7),[x1,y1]=at(a,R-2.5);
+   c.pt.setAttribute('x1',x0); c.pt.setAttribute('y1',y0); c.pt.setAttribute('x2',x1); c.pt.setAttribute('y2',y1);
+  }
+ }
+ // 色の対象を切り替えたときなど、イベントなしで値が変わることがあるので、軽く見回って描き直す
+ draw(); setInterval(draw,80);
+})();
 
 })();
 </script>
