@@ -249,7 +249,7 @@ body{margin:0}
       <h2>MIDI</h2>
       <p class="midistat" id="midiStat">Connecting…</p>
       <div class="midiprompt" id="midiPrompt" hidden><p id="midiText" style="margin:0"></p><div class="midibtns"><button class="textbtn" id="midiSkip" type="button">Skip</button><button class="textbtn" id="midiCancel" type="button">Cancel</button></div></div>
-      <div class="midibtns"><button class="textbtn" id="midiLearn" type="button">Learn</button></div>
+      <div class="midibtns"><button class="textbtn" id="midiLearn" type="button">Learn</button><button class="textbtn" id="midiLearnVsn" type="button">Learn VSN1</button></div>
       <p class="midistat" id="midiLast"></p>
     </section>
   </div>
@@ -1444,7 +1444,7 @@ loadDefault();
 (()=>{
  const $=id=>document.getElementById(id);
  const statEl=$('midiStat'), promptEl=$('midiPrompt'), textEl=$('midiText'), lastEl=$('midiLast');
- const learnBtn=$('midiLearn'), skipBtn=$('midiSkip'), cancelBtn=$('midiCancel');
+ const learnBtn=$('midiLearn'), vsnBtn=$('midiLearnVsn'), skipBtn=$('midiSkip'), cancelBtn=$('midiCancel');
  const bleedEl=$('bleed'), bleedOut=$('bleedOut');
 
  // にじみ：-100〜+100。+で水が多く乾きにくい（遠くまで広がる）、−で水が少なく早く乾く
@@ -1531,7 +1531,7 @@ loadDefault();
  const count=()=>Object.keys(map).length;
 
  // ---- 受け取り ----
- let access=null, learning=-1, cap=null, capT=null, holdUntil=0;
+ let access=null, learning=-1, cap=null, capT=null, holdUntil=0; const down={};
  const idOf=(type,ch,n)=>`${type}:${ch}:${n}`;
  function decodeRel(b,v){
   if(b.mode==='bin')return v-64;
@@ -1547,6 +1547,11 @@ loadDefault();
   else return;
   lastEl.textContent=`${type==='cc'?'CC':'Note'} ${n} · ch ${ch} · ${v}`;
   const id=idOf(type,ch,n);
+  // 押した瞬間：ノートは Note On ごとに1回。CCは半分（64）を超えたときに1回で、32を下回ったら離したとみなす
+  let edge=false;
+  if(type==='note'){ edge=on; }
+  else { if(!down[id]&&v>=64){edge=true; down[id]=true;} else if(down[id]&&v<32)down[id]=false; }
+  on=edge;
   if(learning>=0){learnMsg(type,id,v,on); return;}
   const list=index[id]; if(!list)return;
   for(const {key,b} of list){
@@ -1575,7 +1580,7 @@ loadDefault();
    // 同じつまみの「回す」と同じメッセージは押し込みとして受けない
    const turnB=map[s.act]&&map[s.act].kind==='turn'?map[s.act]:null;
    if(s.act&&STEPS[learning-1]&&STEPS[learning-1].act===s.act&&turnB&&turnB.id===id)return;
-   map[s.act+'.press']={id,kind:'press'};
+   assign(s.act+'.press',{id,kind:'press'});
    nextStep(); return;
   }
   // 回す：CCを数回集めて、絶対値か相対値かを見分ける
@@ -1595,28 +1600,32 @@ loadDefault();
   else if(vs.every(v=>v>=65&&v<=95))mode='bin';
   else if(vs.every(v=>v>=1&&v<=31))mode='two';
   else mode='abs';
-  map[STEPS[learning].act]={id:cap.id,kind:'turn',mode};
+  assign(STEPS[learning].act,{id:cap.id,kind:'turn',mode});
   nextStep();
  }
- function startLearn(){
-  // 覚え直すときは、いったん全部消してから順に覚える
-  map={}; rebuild();
-  learning=0; cap=null; holdUntil=0;
-  learnBtn.hidden=true;
+ function assign(key,b){
+  for(const k of Object.keys(map))if(k!==key&&map[k].id===b.id&&!(k+'.press'===key))delete map[k];
+  map[key]=b;
+ }
+ // 覚え直し：Skip した項目は前の割り当てのまま残す。from＝始める番号（VSN1だけなら EN16 の分を飛ばす）
+ function startLearn(from){
+  learning=from||0; cap=null; holdUntil=0;
+  learnBtn.hidden=true; vsnBtn.hidden=true;
   showStep();
  }
  function finishLearn(){
   mark(false); learning=-1; promptEl.hidden=true;
-  learnBtn.hidden=false;
+  learnBtn.hidden=false; vsnBtn.hidden=false;
   save(); rebuild(); status();
  }
  function cancelLearn(){
-  mark(false); learning=-1; promptEl.hidden=true;
+  mark(false); learning=-1; promptEl.hidden=true; vsnBtn.hidden=false;
   try{map=JSON.parse(localStorage.getItem(KEY)||'{}')||{};}catch(e){map={};}
   learnBtn.hidden=false;
   rebuild(); status();
  }
- learnBtn.addEventListener('click',()=>{ if(!access){status();return;} startLearn(); });
+ learnBtn.addEventListener('click',()=>{ if(!access){status();return;} startLearn(0); });
+ vsnBtn.addEventListener('click',()=>{ if(!access){status();return;} startLearn(STEPS.findIndex(x=>x.where.startsWith('VSN1'))); });
  skipBtn.addEventListener('click',nextStep);
  cancelBtn.addEventListener('click',cancelLearn);
  learnBtn.textContent=count()?'Learn again':'Learn';
@@ -1624,7 +1633,7 @@ loadDefault();
 
  // ---- 接続 ----
  function status(){
-  if(!navigator.requestMIDIAccess){statEl.textContent='Web MIDI is not available in this browser. Use Chrome or Edge on a computer.'; learnBtn.hidden=true; return;}
+  if(!navigator.requestMIDIAccess){statEl.textContent='Web MIDI is not available in this browser. Use Chrome or Edge on a computer.'; learnBtn.hidden=true; vsnBtn.hidden=true; return;}
   if(!access){statEl.textContent='MIDI access was not allowed.'; return;}
   const names=[...access.inputs.values()].filter(i=>i.state==='connected').map(i=>i.name);
   const c=count();
